@@ -1,5 +1,4 @@
 looker.plugins.visualizations.add({
-  // Opciones de configuración visibles en el panel de Looker
   options: {
     titleText: {
       type: "string",
@@ -15,7 +14,6 @@ looker.plugins.visualizations.add({
     }
   },
 
-  // Inicialización del contenedor
   create: function(element, config) {
     element.innerHTML = `
       <style>
@@ -45,6 +43,7 @@ looker.plugins.visualizations.add({
           border-radius: 6px;
           overflow: hidden;
           margin-bottom: 16px;
+          background-color: #f3f4f6;
         }
         .progress-segment {
           display: flex;
@@ -54,6 +53,7 @@ looker.plugins.visualizations.add({
           font-weight: 700;
           font-size: 13px;
           transition: width 0.3s ease;
+          min-width: 24px;
         }
         .cards-container {
           display: grid;
@@ -102,64 +102,72 @@ looker.plugins.visualizations.add({
     `;
   },
 
-  // Renderizado dinámico según los datos devueltos por Looker
   updateAsync: function(data, element, config, queryResponse, details, done) {
     this.clearErrors();
 
-    // 1. Validar que existan dimensiones y medidas esperadas
-    if (queryResponse.fields.dimensions.length < 1 || queryResponse.fields.measures.length < 1) {
+    // 1. Obtener todas las medidas seleccionadas en el Explore
+    const measures = queryResponse.fields.measures;
+
+    if (!measures || measures.length === 0 || !data || data.length === 0) {
       this.addError({
-        title: "Campos insuficientes",
-        message: "Esta visualización requiere al menos 1 dimensión (Categoría/Rango) y 1 medida (Porcentaje o Valor)."
+        title: "Sin datos",
+        message: "Por favor selecciona al menos una medida en tu consulta."
       });
       return;
     }
 
-    // Actualizar encabezados desde opciones
+    // Encabezados dinámicos
     element.querySelector("#title").textContent = config.titleText || "Porcentaje por Rango RPM";
     element.querySelector("#subtitle").textContent = config.subtitleText || "";
 
-    const dimField = queryResponse.fields.dimensions[0].name;
-    const measField = queryResponse.fields.measures[0].name;
-
-    // Colores por defecto asignados según la secuencia o nombres
+    // Colores por defecto para las 3 categorías (Verde, Naranja, Rojo)
     const defaultColors = ["#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6"];
+    const firstRow = data[0];
 
-    // 2. Extraer y procesar datos
-    let totalValue = 0;
-    const rows = data.map((row, index) => {
-      const label = row[dimField].value;
-      const val = parseFloat(row[measField].value) || 0;
-      const renderedVal = row[measField].rendered || `${val}%`;
-      totalValue += val;
+    // 2. Calcular la suma total de las medidas para obtener porcentajes exactos
+    let totalSum = 0;
+    measures.forEach(m => {
+      const val = parseFloat(firstRow[m.name]?.value) || 0;
+      totalSum += val;
+    });
+
+    // 3. Procesar los datos de cada columna
+    const processedItems = measures.map((m, index) => {
+      const rawVal = parseFloat(firstRow[m.name]?.value) || 0;
+      
+      // Si los datos son decimales (ej: 0.2211), calcular % sobre el total relativo
+      const percentVal = totalSum > 0 ? (rawVal / totalSum) * 100 : 0;
+      const formattedPercent = `${percentVal.toFixed(1)}%`;
 
       return {
-        label: label,
-        value: val,
-        rendered: renderedVal,
+        label: m.label_short || m.label || m.name,
+        rawValue: rawVal,
+        percentage: percentVal,
+        rendered: formattedPercent,
         color: defaultColors[index % defaultColors.length]
       };
     });
 
-    // 3. Renderizar Barra de Progreso Segmentada
+    // 4. Dibujar la barra de progreso
     const progressBar = element.querySelector("#progress-bar");
     progressBar.innerHTML = "";
 
-    rows.forEach(item => {
-      const percentage = totalValue > 0 ? ((item.value / totalValue) * 100).toFixed(1) : 0;
-      const segment = document.createElement("div");
-      segment.className = "progress-segment";
-      segment.style.width = `${percentage}%`;
-      segment.style.backgroundColor = item.color;
-      segment.textContent = `${item.rendered}`;
-      progressBar.appendChild(segment);
+    processedItems.forEach(item => {
+      if (item.percentage > 0) {
+        const segment = document.createElement("div");
+        segment.className = "progress-segment";
+        segment.style.width = `${item.percentage}%`;
+        segment.style.backgroundColor = item.color;
+        segment.textContent = item.rendered;
+        progressBar.appendChild(segment);
+      }
     });
 
-    // 4. Renderizar Tarjetas de Leyenda en la parte inferior
+    // 5. Dibujar las tarjetas inferiores
     const cardsGrid = element.querySelector("#cards-grid");
     cardsGrid.innerHTML = "";
 
-    rows.forEach(item => {
+    processedItems.forEach(item => {
       const card = document.createElement("div");
       card.className = "legend-card";
       card.style.borderColor = item.color;
@@ -167,7 +175,7 @@ looker.plugins.visualizations.add({
       card.innerHTML = `
         <div class="card-header">
           <span class="dot" style="background-color: ${item.color};"></span>
-          <span class="card-title" style="color: #1a1a1a;">${item.label}</span>
+          <span class="card-title">${item.label}</span>
         </div>
         <p class="card-desc">${item.label} (${item.rendered})</p>
       `;
