@@ -1,62 +1,41 @@
-// Asegúrate de incluir ECharts en tu HTML o cargarlo dinámicamente si estás en un bundle
-// <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
-
 looker.plugins.visualizations.add({
-  // Configuración de la interfaz del editor de Looker
   options: {
     chartTitle: {
       type: "string",
       label: "Título del Gráfico",
-      default: "Evolución Mensual por Rendimiento",
+      default: "Evolución Mensual",
       section: "Texto"
     },
     chartSubtitle: {
       type: "string",
       label: "Subtítulo",
-      default: "Ahorro conseguido vs Gasto adicional por km/L operativo",
+      default: "",
       section: "Texto"
     },
     colorPalette: {
       type: "array",
-      label: "Colores de las líneas",
-      default: ["#00c379", "#f59e0b", "#3b82f6", "#ef4444", "#8b5cf6"],
+      label: "Paleta de Colores",
+      default: ["#00c379", "#f59e0b", "#3b82f6", "#ef4444", "#8b5cf6", "#10b981", "#6366f1"],
       section: "Estilo"
     }
   },
 
-  // Método de inicialización
   create: function (element, config) {
-    // Inyectar el contenedor del gráfico y la estructura de títulos
     element.innerHTML = `
       <style>
         .custom-chart-container {
           width: 100%;
           height: 100%;
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
           display: flex;
           flex-direction: column;
           box-sizing: border-box;
           padding: 10px;
         }
-        .chart-header {
-          margin-bottom: 10px;
-        }
-        .chart-title {
-          font-size: 16px;
-          font-weight: bold;
-          color: #111827;
-          margin: 0;
-        }
-        .chart-subtitle {
-          font-size: 12px;
-          color: #6b7280;
-          margin: 4px 0 0 0;
-        }
-        .chart-canvas {
-          flex: 1;
-          width: 100%;
-          min-height: 250px;
-        }
+        .chart-header { margin-bottom: 10px; }
+        .chart-title { font-size: 16px; font-weight: bold; color: #111827; margin: 0; }
+        .chart-subtitle { font-size: 12px; color: #6b7280; margin: 4px 0 0 0; }
+        .chart-canvas { flex: 1; width: 100%; min-height: 250px; }
       </style>
       <div class="custom-chart-container">
         <div class="chart-header">
@@ -67,25 +46,22 @@ looker.plugins.visualizations.add({
       </div>
     `;
 
-    // Inicializar la instancia de ECharts
     const container = element.querySelector('#echarts-container');
     this._chart = echarts.init(container);
   },
 
-  // Método que se ejecuta cada vez que cambian los datos o la configuración
   updateAsync: function (data, element, config, queryResponse, details, done) {
-    // Limpiar errores previos
     this.clearErrors();
 
-    // Validar requerimientos de dimensiones y mediciones
     const dims = queryResponse.fields.dimension_like;
     const measures = queryResponse.fields.measure_like;
+    const pivots = queryResponse.pivots;
 
-    if (dims.length > 1) {
+    if (dims.length === 0) {
       this.addError({
-        id: "dim-limit",
-        title: "Demasiadas Dimensiones",
-        message: "Este visualizador acepta como máximo 1 dimensión en el eje X."
+        id: "no-dims",
+        title: "Falta Dimensión",
+        message: "Selecciona al menos 1 dimensión para el eje X."
       });
       return;
     }
@@ -94,62 +70,114 @@ looker.plugins.visualizations.add({
       this.addError({
         id: "no-measures",
         title: "Faltan Mediciones",
-        message: "Por favor, selecciona al menos 1 medida (measure)."
+        message: "Selecciona al menos 1 medida (measure)."
       });
       return;
     }
 
-    // Actualizar encabezados
+    // Encabezados
     element.querySelector('#viz-title').textContent = config.chartTitle || '';
     element.querySelector('#viz-subtitle').textContent = config.chartSubtitle || '';
 
-    // Extraer valores de la dimensión (Eje X)
-    const xAxisData = dims.length > 0 
-      ? data.map(row => LookerCharts.Utils.htmlForCell(row[dims[0].name]))
-      : data.map((_, i) => `Fila ${i + 1}`);
+    const colors = config.colorPalette || ["#00c379", "#f59e0b", "#3b82f6", "#ef4444"];
+    let xAxisData = [];
+    let series = [];
 
-    // Construir las series de datos para cada medición
-    const colors = config.colorPalette || ["#00c379", "#f59e0b"];
-    const series = measures.map((m, index) => {
-      return {
+    // CASO 1: Datos Pivotados en Looker
+    if (pivots && pivots.length > 0) {
+      xAxisData = data.map(row => LookerCharts.Utils.htmlForCell(row[dims[0].name]));
+
+      let colorIndex = 0;
+      measures.forEach(m => {
+        pivots.forEach(p => {
+          const pivotLabel = Object.values(p.data).join(' - ');
+          const seriesName = measures.length > 1 ? `${m.label_short || m.label} (${pivotLabel})` : pivotLabel;
+
+          series.push({
+            name: seriesName,
+            type: 'line',
+            smooth: true,
+            symbol: 'circle',
+            symbolSize: 8,
+            itemStyle: { color: colors[colorIndex % colors.length] },
+            lineStyle: { width: 2.5 },
+            data: data.map(row => {
+              const cell = row[m.name] ? row[m.name][p.key] : null;
+              return cell ? cell.value : null;
+            })
+          });
+          colorIndex++;
+        });
+      });
+
+    // CASO 2: 2 Dimensiones sin Pivot (Eje X = Dim 1, Series = Valores de Dim 2)
+    } else if (dims.length >= 2) {
+      const xDim = dims[0].name;
+      const groupDim = dims[1].name;
+
+      xAxisData = [...new Set(data.map(row => LookerCharts.Utils.htmlForCell(row[xDim])))];
+      const uniqueGroups = [...new Set(data.map(row => LookerCharts.Utils.htmlForCell(row[groupDim])))];
+
+      let colorIndex = 0;
+      measures.forEach(m => {
+        uniqueGroups.forEach(groupValue => {
+          const seriesName = measures.length > 1 ? `${m.label_short || m.label} - ${groupValue}` : groupValue;
+
+          const seriesData = xAxisData.map(xVal => {
+            const foundRow = data.find(row => 
+              LookerCharts.Utils.htmlForCell(row[xDim]) === xVal && 
+              LookerCharts.Utils.htmlForCell(row[groupDim]) === groupValue
+            );
+            return foundRow && foundRow[m.name] ? foundRow[m.name].value : null;
+          });
+
+          series.push({
+            name: seriesName,
+            type: 'line',
+            smooth: true,
+            symbol: 'circle',
+            symbolSize: 8,
+            itemStyle: { color: colors[colorIndex % colors.length] },
+            lineStyle: { width: 2.5 },
+            data: seriesData
+          });
+          colorIndex++;
+        });
+      });
+
+    // CASO 3: 1 Dimensión + Múltiples Mediciones
+    } else {
+      xAxisData = data.map(row => LookerCharts.Utils.htmlForCell(row[dims[0].name]));
+
+      series = measures.map((m, index) => ({
         name: m.label_short || m.label,
         type: 'line',
-        smooth: true, // Curva suave similar a la imagen
+        smooth: true,
         symbol: 'circle',
         symbolSize: 8,
-        itemStyle: {
-          color: colors[index % colors.length]
-        },
-        lineStyle: {
-          width: 2.5
-        },
-        data: data.map(row => {
-          const cell = row[m.name];
-          return cell ? cell.value : null;
-        })
-      };
-    });
+        itemStyle: { color: colors[index % colors.length] },
+        lineStyle: { width: 2.5 },
+        data: data.map(row => row[m.name] ? row[m.name].value : null)
+      }));
+    }
 
-    // Configuración completa del gráfico ECharts
+    // Configuración de ECharts
     const option = {
       tooltip: {
         trigger: 'axis',
-        valueFormatter: (value) => value != null ? '$' + value.toLocaleString() : ''
+        valueFormatter: (val) => val != null ? (typeof val === 'number' ? val.toLocaleString() : val) : '-'
       },
       legend: {
         bottom: 0,
         icon: 'circle',
-        itemGap: 20,
-        textStyle: {
-          color: '#374151',
-          fontSize: 12
-        }
+        itemGap: 15,
+        textStyle: { color: '#374151', fontSize: 12 }
       },
       grid: {
-        top: '10%',
+        top: '12%',
         left: '3%',
         right: '4%',
-        bottom: '15%',
+        bottom: '18%',
         containLabel: true
       },
       xAxis: {
@@ -167,7 +195,7 @@ looker.plugins.visualizations.add({
         axisLabel: {
           color: '#9ca3af',
           formatter: (value) => {
-            if (value >= 1000) return '$' + (value / 1000) + 'k';
+            if (Math.abs(value) >= 1000) return '$' + (value / 1000) + 'k';
             return '$' + value;
           }
         }
@@ -175,7 +203,6 @@ looker.plugins.visualizations.add({
       series: series
     };
 
-    // Renderizar gráfico y ajustar tamaño responsivo
     this._chart.setOption(option, true);
     this._chart.resize();
 
