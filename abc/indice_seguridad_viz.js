@@ -131,6 +131,16 @@ looker.plugins.visualizations.add({
           min-height: 220px;
           margin-top: 8px;
         }
+        .ise-msg {
+          display: none;
+          margin-top: 12px;
+          padding: 10px 12px;
+          border-radius: 6px;
+          background: #fef2f2;
+          border: 1px solid #fecaca;
+          color: #b91c1c;
+          font-size: 12px;
+        }
       </style>
       <div class="ise-wrap">
         <div class="ise-card with-border" id="ise-card">
@@ -138,19 +148,34 @@ looker.plugins.visualizations.add({
             <h2 class="ise-title" id="ise-title"></h2>
             <p class="ise-subtitle" id="ise-subtitle"></p>
           </div>
+          <div class="ise-msg" id="ise-msg"></div>
           <div class="ise-canvas" id="ise-chart"></div>
         </div>
       </div>
     `;
 
     const container = element.querySelector("#ise-chart");
-    this._chart = echarts.init(container);
 
     // Ajusta el gráfico cuando cambia el tamaño del tile o del iframe embebido
     this._resizeObserver = new ResizeObserver(() => {
       if (this._chart) this._chart.resize();
     });
     this._resizeObserver.observe(container);
+  },
+
+  // Inicializa ECharts la primera vez que hay datos (y avisa si la librería no cargó)
+  _ensureChart: function (element) {
+    const msg = element.querySelector("#ise-msg");
+    if (typeof echarts === "undefined") {
+      msg.style.display = "block";
+      msg.textContent = "No se cargó ECharts. Revisa que el bloque visualization del manifest tenga la URL de ECharts en dependencies.";
+      return false;
+    }
+    msg.style.display = "none";
+    if (!this._chart) {
+      this._chart = echarts.init(element.querySelector("#ise-chart"));
+    }
+    return true;
   },
 
   updateAsync: function (data, element, config, queryResponse, details, done) {
@@ -176,6 +201,17 @@ looker.plugins.visualizations.add({
     element.querySelector("#ise-subtitle").textContent = config.chartSubtitle || "";
     element.querySelector("#ise-card").classList.toggle("with-border", config.showCard !== false);
 
+    if (!this._ensureChart(element)) {
+      done();
+      return;
+    }
+
+    // Ordena de más antiguo a más reciente aunque el Explore venga descendente
+    const sortKey = dims[0].name;
+    data = data.slice().sort((a, b) =>
+      String(a[sortKey].value).localeCompare(String(b[sortKey].value))
+    );
+
     // ---------- Utilidades ----------
     const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
     const colors = (config.colorPalette && config.colorPalette.length) ? config.colorPalette : ["#1f4e9a"];
@@ -192,10 +228,17 @@ looker.plugins.visualizations.add({
     const xLabel = (row) => {
       const cell = row[xDim];
       const raw = String(cell.value || "");
-      const m = raw.match(/^(\d{4})-(\d{2})/); // "2026-01" o "2026-01-15"
-      if (m) {
-        const mes = MESES[parseInt(m[2], 10) - 1];
-        return multiYear ? `${mes} ${m[1].slice(2)}` : mes;
+      // Mensual "2026-01" -> "Ene"
+      const mMonth = raw.match(/^(\d{4})-(\d{2})$/);
+      if (mMonth) {
+        const mes = MESES[parseInt(mMonth[2], 10) - 1];
+        return multiYear ? `${mes} ${mMonth[1].slice(2)}` : mes;
+      }
+      // Diario o semanal "2026-09-28" -> "28 Sep"
+      const mDay = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (mDay) {
+        const etiqueta = `${parseInt(mDay[3], 10)} ${MESES[parseInt(mDay[2], 10) - 1]}`;
+        return multiYear ? `${etiqueta} ${mDay[1].slice(2)}` : etiqueta;
       }
       return LookerCharts.Utils.textForCell(cell);
     };
@@ -258,9 +301,27 @@ looker.plugins.visualizations.add({
         formatter: (v) => `${v}${suffix}`
       }
     };
-    if (hasNum(config.yMin)) yAxis.min = Number(config.yMin);
-    if (hasNum(config.yMax)) yAxis.max = Number(config.yMax);
-    if (hasNum(config.yInterval) && Number(config.yInterval) > 0) yAxis.interval = Number(config.yInterval);
+    // Si algún valor queda fuera del rango configurado, el eje se amplía para no cortarlo
+    const allValues = series.flatMap(s => s.data).filter(hasNum).map(Number);
+    const dataMin = allValues.length ? Math.min(...allValues) : null;
+    const dataMax = allValues.length ? Math.max(...allValues) : null;
+    const step = (hasNum(config.yInterval) && Number(config.yInterval) > 0) ? Number(config.yInterval) : null;
+
+    if (hasNum(config.yMin)) {
+      let min = Number(config.yMin);
+      if (dataMin !== null && dataMin < min) {
+        min = step ? Math.floor(dataMin / step) * step : Math.floor(dataMin);
+      }
+      yAxis.min = min;
+    }
+    if (hasNum(config.yMax)) {
+      let max = Number(config.yMax);
+      if (dataMax !== null && dataMax > max) {
+        max = step ? Math.ceil(dataMax / step) * step : Math.ceil(dataMax);
+      }
+      yAxis.max = max;
+    }
+    if (step) yAxis.interval = step;
 
     // ---------- Opciones de ECharts ----------
     const showLegend = config.showLegend !== false;
