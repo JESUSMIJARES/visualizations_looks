@@ -163,12 +163,26 @@ looker.plugins.visualizations.add({
     this._resizeObserver.observe(container);
   },
 
+  // Carga ECharts por su cuenta si no vino como dependencia
+  _loadECharts: function () {
+    if (typeof echarts !== "undefined") return Promise.resolve();
+    if (this._echartsPromise) return this._echartsPromise;
+    this._echartsPromise = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js";
+      s.onload = () => resolve();
+      s.onerror = () => { this._echartsPromise = null; reject(new Error("No se pudo descargar ECharts")); };
+      document.head.appendChild(s);
+    });
+    return this._echartsPromise;
+  },
+
   // Inicializa ECharts la primera vez que hay datos (y avisa si la librería no cargó)
   _ensureChart: function (element) {
     const msg = element.querySelector("#ise-msg");
     if (typeof echarts === "undefined") {
       msg.style.display = "block";
-      msg.textContent = "No se cargó ECharts. Revisa que el bloque visualization del manifest tenga la URL de ECharts en dependencies.";
+      msg.textContent = "No se pudo cargar ECharts. Revisa la consola (F12) o la conexión a cdnjs.cloudflare.com.";
       return false;
     }
     msg.style.display = "none";
@@ -200,6 +214,13 @@ looker.plugins.visualizations.add({
     element.querySelector("#ise-title").textContent = config.chartTitle || "";
     element.querySelector("#ise-subtitle").textContent = config.chartSubtitle || "";
     element.querySelector("#ise-card").classList.toggle("with-border", config.showCard !== false);
+
+    if (typeof echarts === "undefined") {
+      this._loadECharts()
+        .then(() => this.updateAsync(data, element, config, queryResponse, details, done))
+        .catch(() => { this._ensureChart(element); done(); });
+      return;
+    }
 
     if (!this._ensureChart(element)) {
       done();
