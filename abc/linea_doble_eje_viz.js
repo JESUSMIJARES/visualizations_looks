@@ -29,7 +29,7 @@ looker.plugins.visualizations.add({
         rightSuffix: { type: "string", label: "Sufijo eje derecho", default: " pts", section: "Eje derecho", order: 1 },
         rightMin: { type: "number", label: "Mínimo (vacío = automático)", default: 0, section: "Eje derecho", order: 2 },
         rightMax: { type: "number", label: "Máximo (vacío = automático)", default: 25, section: "Eje derecho", order: 3 },
-        rightSplits: { type: "number", label: "Número de divisiones", default: 4, section: "Eje derecho", order: 4 },
+        rightSplits: { type: "number", label: "Número de divisiones", default: 5, section: "Eje derecho", order: 4 },
         color2: { type: "array", label: "Color", display: "color", default: ["#e11d48"], section: "Eje derecho", order: 5 },
 
         decimals: { type: "number", label: "Decimales en tooltip", default: 1, section: "Estilo", order: 1 },
@@ -153,8 +153,11 @@ looker.plugins.visualizations.add({
             : Number(v).toLocaleString("es-MX", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) + sfx;
 
         // Ejes: respetan el rango configurado, pero se amplían si un valor queda fuera
-        const buildAxis = (vals, min, max, sfx, color, position) => {
+        const buildAxis = (vals, min, max, sfx, color, position, step) => {
             const nums = vals.filter(hasNum);
+            // Al ampliar el rango, redondea al múltiplo del intervalo para que las etiquetas queden parejas
+            const down = (v) => step ? Math.floor(v / step) * step : Math.floor(v);
+            const up = (v) => step ? Math.ceil(v / step) * step : Math.ceil(v);
             const axis = {
                 type: "value",
                 position,
@@ -163,19 +166,24 @@ looker.plugins.visualizations.add({
                 splitLine: position === "left" ? { lineStyle: { type: [4, 4], color: "#eef0f3" } } : { show: false },
                 axisLabel: { color, fontSize: 12, fontWeight: 700, formatter: (v) => `${v}${sfx}` }
             };
-            if (hasNum(min)) axis.min = nums.length ? Math.min(Number(min), Math.floor(Math.min(...nums))) : Number(min);
-            if (hasNum(max)) axis.max = nums.length ? Math.max(Number(max), Math.ceil(Math.max(...nums))) : Number(max);
+            if (hasNum(min)) axis.min = nums.length ? Math.min(Number(min), down(Math.min(...nums))) : Number(min);
+            if (hasNum(max)) axis.max = nums.length ? Math.max(Number(max), up(Math.max(...nums))) : Number(max);
+            if (step) axis.interval = step;
             return axis;
         };
 
-        const yLeft = buildAxis(vals1, config.leftMin, config.leftMax, sfx1, c1, "left");
-        if (hasNum(config.leftInterval) && Number(config.leftInterval) > 0) yLeft.interval = Number(config.leftInterval);
-        const yRight = buildAxis(vals2, config.rightMin, config.rightMax, sfx2, c2, "right");
-        const splits = hasNum(config.rightSplits) && Number(config.rightSplits) > 0 ? Number(config.rightSplits) : 4;
-        if (hasNum(yRight.min) && hasNum(yRight.max)) {
-            yRight.interval = (yRight.max - yRight.min) / splits;
-            yRight.axisLabel.formatter = (v) => `${Math.round(v)}${sfx2}`;
+        const leftStep = hasNum(config.leftInterval) && Number(config.leftInterval) > 0 ? Number(config.leftInterval) : null;
+        const yLeft = buildAxis(vals1, config.leftMin, config.leftMax, sfx1, c1, "left", leftStep);
+
+        // Eje derecho: intervalo "redondo" a partir del rango configurado y el número de divisiones
+        const splits = hasNum(config.rightSplits) && Number(config.rightSplits) > 0 ? Number(config.rightSplits) : 5;
+        let rightStep = null;
+        if (hasNum(config.rightMin) && hasNum(config.rightMax) && Number(config.rightMax) > Number(config.rightMin)) {
+            const raw = (Number(config.rightMax) - Number(config.rightMin)) / splits;
+            const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+            rightStep = [1, 2, 2.5, 5, 10].map(f => f * pow).find(s => s >= raw);
         }
+        const yRight = buildAxis(vals2, config.rightMin, config.rightMax, sfx2, c2, "right", rightStep);
 
         const smooth = config.smoothLine !== false ? 0.35 : false;
         const lineSeries = (name, values, color, yAxisIndex, sfx) => ({
