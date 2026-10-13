@@ -93,11 +93,19 @@ looker.plugins.visualizations.add({
         },
         barColor: {
             type: "array",
-            label: "Color de las barras",
+            label: "Color de las barras (serie 1)",
             display: "color",
             default: ["#12468a"],
             section: "Estilo",
             order: 1
+        },
+        extraColors: {
+            type: "array",
+            label: "Colores series 2, 3… (con varias medidas)",
+            display: "colors",
+            default: ["#f39c12", "#10b981", "#ef4444", "#8b5cf6"],
+            section: "Estilo",
+            order: 1.5
         },
         showValues: {
             type: "boolean",
@@ -280,27 +288,33 @@ looker.plugins.visualizations.add({
         // ---------- Construir barras (categoría, valor) ----------
         const toNum = (v) => (v === null || v === undefined || v === "" || isNaN(Number(v))) ? null : Number(v);
         let bars = [];
+        let seriesNames = [];
 
         if (dims.length === 0) {
-            // A) Cada medida es una barra; se toma la primera fila
+            // A) Cada medida es una barra (una sola serie); se toma la primera fila
             const row = data[0];
-            bars = measures.map(m => ({
-                name: m.label_short || m.label,
-                value: toNum(row[m.name] && row[m.name].value)
-            }));
+            bars = measures.map(m => {
+                const v = toNum(row[m.name] && row[m.name].value);
+                return { name: m.label_short || m.label, value: v, values: [v] };
+            });
+            seriesNames = [config.seriesName || "Calificación"];
         } else {
-            // B) Cada fila es una barra; dimensión = nombre, primera medida = valor
+            // B) Cada fila es un grupo; cada medida es una serie (barras agrupadas)
             const d0 = dims[0].name;
-            const m0 = measures[0].name;
             const nullLabel = (config.nullLabel && config.nullLabel.trim()) || "Sin asignar";
             bars = data.map(row => {
                 const cell = row[d0];
                 const isNull = !cell || cell.value === null || cell.value === undefined || cell.value === "";
+                const values = measures.map(m => toNum(row[m.name] && row[m.name].value));
                 return {
                     name: isNull ? nullLabel : LookerCharts.Utils.textForCell(cell),
-                    value: toNum(row[m0] && row[m0].value)
+                    value: values[0],
+                    values
                 };
             });
+            seriesNames = measures.length === 1
+                ? [config.seriesName || measures[0].label_short || measures[0].label]
+                : measures.map(m => m.label_short || m.label);
         }
 
         if (config.sortBars === "desc") bars.sort((a, b) => (b.value ?? -Infinity) - (a.value ?? -Infinity));
@@ -309,14 +323,15 @@ looker.plugins.visualizations.add({
         // ---------- Formato ----------
         const suffix = config.unitSuffix != null ? config.unitSuffix : " pts";
         const decimals = Number.isFinite(config.decimals) ? config.decimals : 1;
-        const color = (config.barColor && config.barColor[0]) || "#12468a";
+        const colors = [(config.barColor && config.barColor[0]) || "#12468a"]
+            .concat((config.extraColors && config.extraColors.length) ? config.extraColors : ["#f39c12", "#10b981", "#ef4444", "#8b5cf6"]);
         const fmt = (v) => (v == null || isNaN(v))
             ? "-"
             : Number(v).toLocaleString("es-MX", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) + suffix;
 
         // ---------- Eje Y ----------
         const hasNum = (v) => v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
-        const values = bars.map(b => b.value).filter(hasNum);
+        const values = bars.flatMap(b => b.values).filter(hasNum);
         const dataMax = values.length ? Math.max(...values) : null;
         const step = (hasNum(config.yInterval) && Number(config.yInterval) > 0) ? Number(config.yInterval) : null;
 
@@ -412,23 +427,27 @@ looker.plugins.visualizations.add({
             },
             yAxis,
             graphic,
-            series: [{
-                name: config.seriesName || "Calificación",
-                type: "bar",
-                barMaxWidth: 120,
-                barCategoryGap: "18%",
-                itemStyle: { color, borderRadius: [4, 4, 0, 0] },
-                emphasis: { itemStyle: { color, opacity: 0.85 } },
-                label: {
-                    show: config.showValues === true,
-                    position: "top",
-                    color: "#374151",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    formatter: (p) => fmt(p.value)
-                },
-                data: bars.map(b => b.value)
-            }]
+            series: seriesNames.map((sName, i) => {
+                const color = colors[i % colors.length];
+                return {
+                    name: sName,
+                    type: "bar",
+                    barMaxWidth: seriesNames.length > 1 ? 80 : 120,
+                    barGap: "10%",
+                    barCategoryGap: seriesNames.length > 1 ? "28%" : "18%",
+                    itemStyle: { color, borderRadius: [4, 4, 0, 0] },
+                    emphasis: { itemStyle: { color, opacity: 0.85 } },
+                    label: {
+                        show: config.showValues === true,
+                        position: "top",
+                        color: "#374151",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        formatter: (p) => fmt(p.value)
+                    },
+                    data: bars.map(b => b.values[i])
+                };
+            })
         };
 
         this._chart.setOption(option, true);
