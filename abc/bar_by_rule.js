@@ -35,12 +35,26 @@ looker.plugins.visualizations.add({
             section: "Texto",
             order: 3
         },
+        footnoteCustom: {
+            type: "string",
+            label: "Texto de la nota (vacío = lista automática)",
+            default: "",
+            section: "Texto",
+            order: 4
+        },
         seriesName: {
             type: "string",
             label: "Nombre en la leyenda",
             default: "Calificación",
             section: "Texto",
-            order: 4
+            order: 5
+        },
+        nullLabel: {
+            type: "string",
+            label: "Etiqueta para valores vacíos",
+            default: "Sin asignar",
+            section: "Texto",
+            order: 6
         },
         unitSuffix: {
             type: "string",
@@ -189,7 +203,13 @@ looker.plugins.visualizations.add({
 
         const container = element.querySelector("#cpr-chart");
         this._resizeObserver = new ResizeObserver(() => {
-            if (this._chart) this._chart.resize();
+            if (!this._chart) return;
+            this._chart.resize();
+            // Recalcula el ancho de las etiquetas del eje X con el nuevo tamaño
+            if (this._lastArgs) {
+                clearTimeout(this._resizeTimer);
+                this._resizeTimer = setTimeout(() => this.updateAsync(...this._lastArgs, () => { }), 150);
+            }
         });
         this._resizeObserver.observe(container);
     },
@@ -255,6 +275,8 @@ looker.plugins.visualizations.add({
             return;
         }
 
+        this._lastArgs = [data, element, config, queryResponse, details];
+
         // ---------- Construir barras (categoría, valor) ----------
         const toNum = (v) => (v === null || v === undefined || v === "" || isNaN(Number(v))) ? null : Number(v);
         let bars = [];
@@ -270,10 +292,15 @@ looker.plugins.visualizations.add({
             // B) Cada fila es una barra; dimensión = nombre, primera medida = valor
             const d0 = dims[0].name;
             const m0 = measures[0].name;
-            bars = data.map(row => ({
-                name: LookerCharts.Utils.textForCell(row[d0]),
-                value: toNum(row[m0] && row[m0].value)
-            }));
+            const nullLabel = (config.nullLabel && config.nullLabel.trim()) || "Sin asignar";
+            bars = data.map(row => {
+                const cell = row[d0];
+                const isNull = !cell || cell.value === null || cell.value === undefined || cell.value === "";
+                return {
+                    name: isNull ? nullLabel : LookerCharts.Utils.textForCell(cell),
+                    value: toNum(row[m0] && row[m0].value)
+                };
+            });
         }
 
         if (config.sortBars === "desc") bars.sort((a, b) => (b.value ?? -Infinity) - (a.value ?? -Infinity));
@@ -317,7 +344,9 @@ looker.plugins.visualizations.add({
         // ---------- Nota inferior ----------
         const showFootnote = config.showFootnote !== false && bars.length > 0;
         const showLegend = config.showLegend !== false;
-        const footnoteText = "Reglas Evaluadas: " + bars.map(b => b.name).join(", ");
+        const footnoteText = (config.footnoteCustom && config.footnoteCustom.trim())
+            ? config.footnoteCustom.trim()
+            : "Reglas Evaluadas: " + bars.map(b => b.name).join(", ");
 
         const graphic = showFootnote ? [{
             type: "text",
@@ -369,7 +398,17 @@ looker.plugins.visualizations.add({
                 data: bars.map(b => b.name),
                 axisLine: { lineStyle: { color: "#e5e7eb" } },
                 axisTick: { show: false },
-                axisLabel: { color: "#4b5563", fontSize: 12, fontWeight: 600, margin: 12, interval: 0 }
+                axisLabel: {
+                    color: "#4b5563",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    margin: 12,
+                    interval: 0,
+                    lineHeight: 15,
+                    // Cada etiqueta usa el ancho de su barra y parte en varias líneas si no cabe
+                    width: Math.max(40, Math.floor((element.querySelector("#cpr-chart").clientWidth - 90) / Math.max(bars.length, 1)) - 8),
+                    overflow: "break"
+                }
             },
             yAxis,
             graphic,
