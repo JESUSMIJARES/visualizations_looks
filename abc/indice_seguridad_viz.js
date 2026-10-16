@@ -1,227 +1,195 @@
 /**
- * Visualización: Tarjeta KPI con variación
- * Valor grande + sufijo ("/ 100") + badge de variación vs periodo anterior.
- *
- * Formas de alimentarla:
- *  A) 1 dimensión de fecha (ej. Fecha Month) + 1 medida  -> compara el periodo más reciente vs el anterior.
- *  B) Sin dimensión, 2 medidas (actual, anterior)        -> compara medida 1 vs medida 2.
- *  C) Sin dimensión, 1 medida                            -> muestra solo el valor, sin badge.
- *
- * No requiere dependencias externas.
+ * Visualización: Evolución Mensual del Índice de Seguridad
+ * Línea suavizada con puntos, eje Y en "pts", meses en español.
+ * Requiere ECharts como dependencia en el manifest.
  */
 looker.plugins.visualizations.add({
-  id: "kpi_card_variacion",
-  label: "KPI con Variación",
+  id: "evolucion_indice_seguridad",
+  label: "Evolución Mensual (Línea)",
 
   options: {
-    kpiTitle: {
+    chartTitle: {
       type: "string",
       label: "Título",
-      default: "Índice de Seguridad",
+      default: "Evolución Mensual del Índice de Seguridad",
       section: "Texto",
       order: 1
     },
-    valueSuffix: {
+    chartSubtitle: {
       type: "string",
-      label: "Sufijo del valor",
-      default: "/ 100",
+      label: "Subtítulo",
+      default: "Tendencia histórica del score consolidado de seguridad vial de la flota",
       section: "Texto",
       order: 2
     },
-    caption: {
+    unitSuffix: {
       type: "string",
-      label: "Texto junto al badge",
-      default: "eficiencia en seguridad vial",
-      section: "Texto",
+      label: "Sufijo de unidad",
+      default: " pts",
+      section: "Eje Y",
+      order: 1
+    },
+    yMin: {
+      type: "number",
+      label: "Mínimo eje Y (vacío = automático)",
+      default: 80,
+      section: "Eje Y",
+      order: 2
+    },
+    yMax: {
+      type: "number",
+      label: "Máximo eje Y (vacío = automático)",
+      default: 100,
+      section: "Eje Y",
       order: 3
+    },
+    yInterval: {
+      type: "number",
+      label: "Intervalo eje Y",
+      default: 5,
+      section: "Eje Y",
+      order: 4
     },
     decimals: {
       type: "number",
-      label: "Decimales del valor",
+      label: "Decimales en tooltip",
       default: 1,
-      section: "Formato",
-      order: 1
-    },
-    changeMode: {
-      type: "string",
-      label: "Tipo de variación",
-      display: "select",
-      values: [
-        { "Porcentaje (%)": "percent" },
-        { "Diferencia absoluta (pts)": "absolute" }
-      ],
-      default: "percent",
-      section: "Formato",
-      order: 2
-    },
-    changeDecimals: {
-      type: "number",
-      label: "Decimales de la variación",
-      default: 1,
-      section: "Formato",
-      order: 3
-    },
-    higherIsBetter: {
-      type: "boolean",
-      label: "Subir es positivo (verde)",
-      default: true,
-      section: "Formato",
-      order: 4
-    },
-    missingPrevious: {
-      type: "string",
-      label: "Si no hay periodo anterior",
-      display: "select",
-      values: [
-        { "Badge gris \"Sin periodo anterior\"": "neutral" },
-        { "Comparar contra 0": "zero" },
-        { "Ocultar badge": "hide" }
-      ],
-      default: "neutral",
-      section: "Formato",
+      section: "Eje Y",
       order: 5
     },
-    enableDrill: {
-      type: "boolean",
-      label: "Abrir detalle al dar clic",
-      default: true,
-      section: "Formato",
-      order: 6
-    },
-    showIcon: {
-      type: "boolean",
-      label: "Mostrar ícono",
-      default: true,
+    colorPalette: {
+      type: "array",
+      label: "Colores de las series",
+      display: "colors",
+      default: ["#1f4e9a", "#00c379", "#f59e0b", "#ef4444", "#8b5cf6", "#3b82f6"],
       section: "Estilo",
       order: 1
     },
-    accentColor: {
-      type: "array",
-      label: "Color del ícono",
-      display: "color",
-      default: ["#1f4e9a"],
+    smoothLine: {
+      type: "boolean",
+      label: "Línea suavizada",
+      default: true,
       section: "Estilo",
       order: 2
+    },
+    showLegend: {
+      type: "boolean",
+      label: "Mostrar leyenda",
+      default: true,
+      section: "Estilo",
+      order: 3
     },
     showCard: {
       type: "boolean",
       label: "Mostrar como tarjeta (borde y sombra)",
       default: true,
       section: "Estilo",
-      order: 3
+      order: 4
     }
   },
 
   create: function (element, config) {
     element.innerHTML = `
       <style>
-        .kpi-wrap {
+        .ise-wrap {
           width: 100%;
           height: 100%;
           box-sizing: border-box;
           padding: 6px;
           font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
-        .kpi-card {
-          position: relative;
+        .ise-card {
           width: 100%;
           height: 100%;
           box-sizing: border-box;
-          background: #ffffff;
-          border-radius: 10px;
-          padding: 18px 20px;
           display: flex;
           flex-direction: column;
-          justify-content: center;
-          gap: 10px;
+          background: #ffffff;
+          padding: 18px 20px 12px 20px;
+          border-radius: 10px;
         }
-        .kpi-card.with-border {
+        .ise-card.with-border {
           border: 1px solid #e5e7eb;
           box-shadow: 0 1px 3px rgba(17, 24, 39, 0.06);
         }
-        .kpi-title {
+        .ise-title {
           margin: 0;
-          padding-right: 40px;
-          font-size: 12px;
+          font-size: 15px;
           font-weight: 700;
-          letter-spacing: 0.06em;
-          text-transform: uppercase;
-          color: #475569;
+          color: #111827;
+          line-height: 1.3;
         }
-        .kpi-icon {
-          position: absolute;
-          top: 14px;
-          right: 16px;
-          width: 30px;
-          height: 30px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border: 1px solid #c7d2e3;
-          background: #eef3fa;
-        }
-        .kpi-icon svg { width: 16px; height: 16px; }
-        .kpi-value-row {
-          display: flex;
-          align-items: baseline;
-          gap: 6px;
-          line-height: 1;
-        }
-        .kpi-value {
-          font-size: 24px;
-          font-weight: 800;
-          color: #0f172a;
-          letter-spacing: -0.01em;
-        }
-        .kpi-suffix {
-          font-size: 13px;
-          font-weight: 600;
-          color: #64748b;
-        }
-        .kpi-foot {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
-        .kpi-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          padding: 3px 8px;
-          border-radius: 5px;
-          font-size: 11px;
-          font-weight: 700;
-          border: 1px solid transparent;
-        }
-        .kpi-badge svg { width: 13px; height: 13px; }
-        .kpi-badge.good    { color: #047857; background: #ecfdf5; border-color: #a7f3d0; }
-        .kpi-badge.bad     { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
-        .kpi-badge.neutral { color: #475569; background: #f1f5f9; border-color: #e2e8f0; }
-        .kpi-caption {
+        .ise-subtitle {
+          margin: 4px 0 0 0;
           font-size: 12px;
-          color: #64748b;
+          color: #6b7280;
+          line-height: 1.4;
         }
-        .kpi-hidden { display: none !important; }
-        .kpi-card.kpi-clickable { cursor: pointer; transition: box-shadow 0.15s ease, border-color 0.15s ease; }
-        .kpi-card.kpi-clickable:hover { border-color: #c7d2e3; box-shadow: 0 4px 12px rgba(17, 24, 39, 0.08); }
+        .ise-canvas {
+          flex: 1;
+          width: 100%;
+          min-height: 220px;
+          margin-top: 8px;
+        }
+        .ise-msg {
+          display: none;
+          margin-top: 12px;
+          padding: 10px 12px;
+          border-radius: 6px;
+          background: #fef2f2;
+          border: 1px solid #fecaca;
+          color: #b91c1c;
+          font-size: 12px;
+        }
       </style>
-      <div class="kpi-wrap">
-        <div class="kpi-card with-border" id="kpi-card">
-          <div class="kpi-icon" id="kpi-icon"></div>
-          <h3 class="kpi-title" id="kpi-title"></h3>
-          <div class="kpi-value-row">
-            <span class="kpi-value" id="kpi-value">-</span>
-            <span class="kpi-suffix" id="kpi-suffix"></span>
+      <div class="ise-wrap">
+        <div class="ise-card with-border" id="ise-card">
+          <div>
+            <h2 class="ise-title" id="ise-title"></h2>
+            <p class="ise-subtitle" id="ise-subtitle"></p>
           </div>
-          <div class="kpi-foot" id="kpi-foot">
-            <span class="kpi-badge" id="kpi-badge"></span>
-            <span class="kpi-caption" id="kpi-caption"></span>
-          </div>
+          <div class="ise-msg" id="ise-msg"></div>
+          <div class="ise-canvas" id="ise-chart"></div>
         </div>
       </div>
     `;
+
+    const container = element.querySelector("#ise-chart");
+
+    // Ajusta el gráfico cuando cambia el tamaño del tile o del iframe embebido
+    this._resizeObserver = new ResizeObserver(() => {
+      if (this._chart) this._chart.resize();
+    });
+    this._resizeObserver.observe(container);
+  },
+
+  // Carga ECharts por su cuenta si no vino como dependencia
+  _loadECharts: function () {
+    if (typeof echarts !== "undefined") return Promise.resolve();
+    if (this._echartsPromise) return this._echartsPromise;
+    this._echartsPromise = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js";
+      s.onload = () => resolve();
+      s.onerror = () => { this._echartsPromise = null; reject(new Error("No se pudo descargar ECharts")); };
+      document.head.appendChild(s);
+    });
+    return this._echartsPromise;
+  },
+
+  // Inicializa ECharts la primera vez que hay datos (y avisa si la librería no cargó)
+  _ensureChart: function (element) {
+    const msg = element.querySelector("#ise-msg");
+    if (typeof echarts === "undefined") {
+      msg.style.display = "block";
+      msg.textContent = "No se pudo cargar ECharts. Revisa la consola (F12) o la conexión a cdnjs.cloudflare.com.";
+      return false;
+    }
+    msg.style.display = "none";
+    if (!this._chart) {
+      this._chart = echarts.init(element.querySelector("#ise-chart"));
+    }
+    return true;
   },
 
   updateAsync: function (data, element, config, queryResponse, details, done) {
@@ -229,131 +197,198 @@ looker.plugins.visualizations.add({
 
     const dims = queryResponse.fields.dimension_like;
     const measures = queryResponse.fields.measure_like;
+    const pivots = queryResponse.pivots;
 
+    if (dims.length === 0) {
+      this.addError({ id: "no-dims", title: "Falta dimensión", message: "Selecciona una dimensión de fecha (por ejemplo, Mes) para el eje X." });
+      done();
+      return;
+    }
     if (measures.length === 0) {
       this.addError({ id: "no-measures", title: "Falta medida", message: "Selecciona al menos una medida (por ejemplo, Índice de Seguridad)." });
       done();
       return;
     }
-    if (!data || data.length === 0) {
-      this.addError({ id: "no-data", title: "Sin datos", message: "La consulta no regresó resultados." });
+
+    // ---------- Encabezado ----------
+    element.querySelector("#ise-title").textContent = config.chartTitle || "";
+    element.querySelector("#ise-subtitle").textContent = config.chartSubtitle || "";
+    element.querySelector("#ise-card").classList.toggle("with-border", config.showCard !== false);
+
+    if (typeof echarts === "undefined") {
+      this._loadECharts()
+        .then(() => this.updateAsync(data, element, config, queryResponse, details, done))
+        .catch(() => { this._ensureChart(element); done(); });
+      return;
+    }
+
+    if (!this._ensureChart(element)) {
       done();
       return;
     }
 
-    const $ = (id) => element.querySelector("#" + id);
-    const toNum = (v) => (v === null || v === undefined || v === "" || isNaN(Number(v))) ? null : Number(v);
+    // Ordena de más antiguo a más reciente aunque el Explore venga descendente
+    const sortKey = dims[0].name;
+    data = data.slice().sort((a, b) =>
+      String(a[sortKey].value).localeCompare(String(b[sortKey].value))
+    );
 
-    // ---------- Obtener valor actual y anterior ----------
-    let current = null;
-    let previous = null;
-    let currentCell = null;
-    const m0 = measures[0].name;
-
-    if (dims.length > 0) {
-      // Ordena por la primera dimensión (fecha) de más antiguo a más reciente,
-      // así no importa el orden que tenga el Explore.
-      const d0 = dims[0].name;
-      const rows = data
-        .filter(r => r[m0] && toNum(r[m0].value) !== null)
-        .slice()
-        .sort((a, b) => String(a[d0].value).localeCompare(String(b[d0].value)));
-
-      if (rows.length > 0) {
-        currentCell = rows[rows.length - 1][m0];
-        current = toNum(currentCell.value);
-      }
-      if (rows.length > 1) previous = toNum(rows[rows.length - 2][m0].value);
-    } else {
-      currentCell = data[0][m0] || null;
-      current = toNum(currentCell && currentCell.value);
-      if (measures.length > 1) {
-        const m1 = measures[1].name;
-        previous = toNum(data[0][m1] && data[0][m1].value);
-      }
-    }
-
-    // ---------- Texto y valor ----------
+    // ---------- Utilidades ----------
+    const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+    const colors = (config.colorPalette && config.colorPalette.length) ? config.colorPalette : ["#1f4e9a"];
+    const suffix = config.unitSuffix != null ? config.unitSuffix : " pts";
     const decimals = Number.isFinite(config.decimals) ? config.decimals : 1;
-    const changeDecimals = Number.isFinite(config.changeDecimals) ? config.changeDecimals : 1;
+    const xDim = dims[0].name;
 
-    $("kpi-title").textContent = config.kpiTitle || measures[0].label_short || measures[0].label;
-    $("kpi-value").textContent = current === null
-      ? "-"
-      : current.toLocaleString("es-MX", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-    $("kpi-suffix").textContent = config.valueSuffix || "";
-    $("kpi-caption").textContent = config.caption || "";
-    $("kpi-card").classList.toggle("with-border", config.showCard !== false);
+    // Si los datos abarcan más de un año, agrega el año a la etiqueta (Ene 25, Ene 26)
+    const years = new Set(
+      data.map(r => String(r[xDim].value || "").slice(0, 4)).filter(y => /^\d{4}$/.test(y))
+    );
+    const multiYear = years.size > 1;
 
-    // ---------- Ícono ----------
-    const accent = (config.accentColor && config.accentColor[0]) || "#1f4e9a";
-    const iconEl = $("kpi-icon");
-    iconEl.classList.toggle("kpi-hidden", config.showIcon === false);
-    iconEl.innerHTML = `
-      <svg viewBox="0 0 16 16" fill="${accent}" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="11.5" cy="3.5" r="2"/>
-        <circle cx="6" cy="6.5" r="1.8"/>
-        <circle cx="10.5" cy="9" r="1.6"/>
-        <circle cx="4.5" cy="12" r="1.8"/>
-        <circle cx="13" cy="13" r="1.2"/>
-      </svg>`;
-
-    // ---------- Clic para ver el detalle (drill) ----------
-    const card = $("kpi-card");
-    const links = (currentCell && currentCell.links) || [];
-    const canDrill = config.enableDrill !== false && links.length > 0;
-    card.classList.toggle("kpi-clickable", canDrill);
-    card.onclick = canDrill
-      ? (event) => LookerCharts.Utils.openDrillMenu({ links, event })
-      : null;
-
-    // ---------- Badge de variación ----------
-    const badge = $("kpi-badge");
-    const foot = $("kpi-foot");
-    const missingMode = config.missingPrevious || "neutral";
-
-    // Sin periodo anterior: según la opción, compara contra 0
-    if (current !== null && previous === null && missingMode === "zero") previous = 0;
-
-    if (current === null || (previous === null && missingMode === "hide")) {
-      badge.classList.add("kpi-hidden");
-      foot.classList.toggle("kpi-hidden", !config.caption);
-    } else if (previous === null) {
-      badge.classList.remove("kpi-hidden");
-      foot.classList.remove("kpi-hidden");
-      badge.className = "kpi-badge neutral";
-      badge.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="2" y1="8" x2="14" y2="8"/></svg><span>Sin periodo anterior</span>`;
-    } else {
-      badge.classList.remove("kpi-hidden");
-      foot.classList.remove("kpi-hidden");
-
-      let change;
-      let changeText;
-      // Contra 0 no existe un porcentaje válido, así que se muestra la diferencia en pts
-      if (config.changeMode === "absolute" || previous === 0) {
-        change = current - previous;
-        changeText = (change > 0 ? "+" : "") +
-          change.toLocaleString("es-MX", { minimumFractionDigits: changeDecimals, maximumFractionDigits: changeDecimals }) + " pts";
-      } else {
-        change = ((current - previous) / Math.abs(previous)) * 100;
-        changeText = (change > 0 ? "+" : "") +
-          change.toLocaleString("es-MX", { minimumFractionDigits: changeDecimals, maximumFractionDigits: changeDecimals }) + "%";
+    const xLabel = (row) => {
+      const cell = row[xDim];
+      const raw = String(cell.value || "");
+      // Mensual "2026-01" -> "Ene"
+      const mMonth = raw.match(/^(\d{4})-(\d{2})$/);
+      if (mMonth) {
+        const mes = MESES[parseInt(mMonth[2], 10) - 1];
+        return multiYear ? `${mes} ${mMonth[1].slice(2)}` : mes;
       }
+      // Diario o semanal "2026-09-28" -> "28 Sep"
+      const mDay = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (mDay) {
+        const etiqueta = `${parseInt(mDay[3], 10)} ${MESES[parseInt(mDay[2], 10) - 1]}`;
+        return multiYear ? `${etiqueta} ${mDay[1].slice(2)}` : etiqueta;
+      }
+      return LookerCharts.Utils.textForCell(cell);
+    };
 
-      const rounded = Number(change.toFixed(changeDecimals));
-      const higherIsBetter = config.higherIsBetter !== false;
-      let state = "neutral";
-      if (rounded > 0) state = higherIsBetter ? "good" : "bad";
-      if (rounded < 0) state = higherIsBetter ? "bad" : "good";
+    const fmt = (v) => (v == null || isNaN(v))
+      ? "-"
+      : Number(v).toLocaleString("es-MX", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) + suffix;
 
-      const arrowUp = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,11.5 6,7 9,10 14.5,4.5"/><polyline points="10.5,4.5 14.5,4.5 14.5,8.5"/></svg>`;
-      const arrowDown = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,4.5 6,9 9,6 14.5,11.5"/><polyline points="10.5,11.5 14.5,11.5 14.5,7.5"/></svg>`;
-      const flat = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="2" y1="8" x2="14" y2="8"/></svg>`;
+    const buildSeries = (name, values, idx) => ({
+      name,
+      type: "line",
+      smooth: config.smoothLine !== false ? 0.35 : false,
+      symbol: "circle",
+      symbolSize: 9,
+      showSymbol: true,
+      connectNulls: true,
+      itemStyle: { color: colors[idx % colors.length], borderColor: colors[idx % colors.length], borderWidth: 1 },
+      lineStyle: { width: 3, color: colors[idx % colors.length] },
+      emphasis: { focus: "series", scale: 1.4 },
+      data: values
+    });
 
-      badge.className = "kpi-badge " + state;
-      badge.innerHTML = (rounded > 0 ? arrowUp : rounded < 0 ? arrowDown : flat) + `<span>${changeText}</span>`;
+    // ---------- Construcción de series ----------
+    const xAxisData = data.map(xLabel);
+    let series = [];
+
+    if (pivots && pivots.length > 0) {
+      let i = 0;
+      measures.forEach(m => {
+        pivots.forEach(p => {
+          const pivotLabel = Object.values(p.data).join(" - ");
+          const name = measures.length > 1 ? `${m.label_short || m.label} (${pivotLabel})` : pivotLabel;
+          const values = data.map(row => {
+            const cell = row[m.name] && row[m.name][p.key];
+            return cell && cell.value != null ? cell.value : null;
+          });
+          series.push(buildSeries(name, values, i++));
+        });
+      });
+    } else {
+      series = measures.map((m, i) =>
+        buildSeries(
+          m.label_short || m.label,
+          data.map(row => (row[m.name] && row[m.name].value != null) ? row[m.name].value : null),
+          i
+        )
+      );
     }
 
+    // ---------- Eje Y ----------
+    const hasNum = (v) => v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
+    const yAxis = {
+      type: "value",
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitLine: { lineStyle: { type: [4, 4], color: "#eef0f3" } },
+      axisLabel: {
+        color: "#6b7280",
+        fontSize: 12,
+        formatter: (v) => `${v}${suffix}`
+      }
+    };
+    // Si algún valor queda fuera del rango configurado, el eje se amplía para no cortarlo
+    const allValues = series.flatMap(s => s.data).filter(hasNum).map(Number);
+    const dataMin = allValues.length ? Math.min(...allValues) : null;
+    const dataMax = allValues.length ? Math.max(...allValues) : null;
+    const step = (hasNum(config.yInterval) && Number(config.yInterval) > 0) ? Number(config.yInterval) : null;
+
+    if (hasNum(config.yMin)) {
+      let min = Number(config.yMin);
+      if (dataMin !== null && dataMin < min) {
+        min = step ? Math.floor(dataMin / step) * step : Math.floor(dataMin);
+      }
+      yAxis.min = min;
+    }
+    if (hasNum(config.yMax)) {
+      let max = Number(config.yMax);
+      if (dataMax !== null && dataMax > max) {
+        max = step ? Math.ceil(dataMax / step) * step : Math.ceil(dataMax);
+      }
+      yAxis.max = max;
+    }
+    if (step) yAxis.interval = step;
+
+    // ---------- Opciones de ECharts ----------
+    const showLegend = config.showLegend !== false;
+    const option = {
+      textStyle: { fontFamily: '"Inter", -apple-system, "Segoe UI", Roboto, sans-serif' },
+      tooltip: {
+        trigger: "axis",
+        backgroundColor: "#ffffff",
+        borderColor: "#e5e7eb",
+        borderWidth: 1,
+        padding: [8, 12],
+        textStyle: { color: "#111827", fontSize: 12 },
+        extraCssText: "box-shadow: 0 4px 12px rgba(17,24,39,0.10); border-radius: 8px;",
+        axisPointer: { type: "line", lineStyle: { color: "#cbd5e1", type: "dashed" } },
+        valueFormatter: fmt
+      },
+      legend: {
+        show: showLegend,
+        bottom: 0,
+        icon: "circle",
+        itemWidth: 14,
+        itemHeight: 14,
+        itemGap: 20,
+        textStyle: { color: "#374151", fontSize: 12 }
+      },
+      grid: {
+        top: 16,
+        left: 8,
+        right: 16,
+        bottom: showLegend ? 44 : 12,
+        containLabel: true
+      },
+      xAxis: {
+        type: "category",
+        boundaryGap: false,
+        data: xAxisData,
+        axisLine: { lineStyle: { color: "#e5e7eb" } },
+        axisTick: { show: false },
+        axisLabel: { color: "#4b5563", fontSize: 12, fontWeight: 600, margin: 12 }
+      },
+      yAxis,
+      series
+    };
+
+    this._chart.setOption(option, true);
+    this._chart.resize();
     done();
   }
 });
