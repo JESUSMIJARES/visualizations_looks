@@ -10,90 +10,110 @@
  * No requiere dependencias externas.
  */
 looker.plugins.visualizations.add({
-    id: "kpi_card_variacion",
-    label: "KPI con Variación",
+  id: "kpi_card_variacion",
+  label: "KPI con Variación",
 
-    options: {
-        kpiTitle: {
-            type: "string",
-            label: "Título",
-            default: "Índice de Seguridad",
-            section: "Texto",
-            order: 1
-        },
-        valueSuffix: {
-            type: "string",
-            label: "Sufijo del valor",
-            default: "/ 100",
-            section: "Texto",
-            order: 2
-        },
-        caption: {
-            type: "string",
-            label: "Texto junto al badge",
-            default: "eficiencia en seguridad vial",
-            section: "Texto",
-            order: 3
-        },
-        decimals: {
-            type: "number",
-            label: "Decimales del valor",
-            default: 1,
-            section: "Formato",
-            order: 1
-        },
-        changeMode: {
-            type: "string",
-            label: "Tipo de variación",
-            display: "select",
-            values: [
-                { "Porcentaje (%)": "percent" },
-                { "Diferencia absoluta (pts)": "absolute" }
-            ],
-            default: "percent",
-            section: "Formato",
-            order: 2
-        },
-        changeDecimals: {
-            type: "number",
-            label: "Decimales de la variación",
-            default: 1,
-            section: "Formato",
-            order: 3
-        },
-        higherIsBetter: {
-            type: "boolean",
-            label: "Subir es positivo (verde)",
-            default: true,
-            section: "Formato",
-            order: 4
-        },
-        showIcon: {
-            type: "boolean",
-            label: "Mostrar ícono",
-            default: true,
-            section: "Estilo",
-            order: 1
-        },
-        accentColor: {
-            type: "array",
-            label: "Color del ícono",
-            display: "color",
-            default: ["#1f4e9a"],
-            section: "Estilo",
-            order: 2
-        },
-        showCard: {
-            type: "boolean",
-            label: "Mostrar como tarjeta (borde y sombra)",
-            default: true,
-            section: "Estilo",
-            order: 3
-        }
+  options: {
+    kpiTitle: {
+      type: "string",
+      label: "Título",
+      default: "Índice de Seguridad",
+      section: "Texto",
+      order: 1
     },
+    valueSuffix: {
+      type: "string",
+      label: "Sufijo del valor",
+      default: "/ 100",
+      section: "Texto",
+      order: 2
+    },
+    caption: {
+      type: "string",
+      label: "Texto junto al badge",
+      default: "eficiencia en seguridad vial",
+      section: "Texto",
+      order: 3
+    },
+    decimals: {
+      type: "number",
+      label: "Decimales del valor",
+      default: 1,
+      section: "Formato",
+      order: 1
+    },
+    changeMode: {
+      type: "string",
+      label: "Tipo de variación",
+      display: "select",
+      values: [
+        { "Porcentaje (%)": "percent" },
+        { "Diferencia absoluta (pts)": "absolute" }
+      ],
+      default: "percent",
+      section: "Formato",
+      order: 2
+    },
+    changeDecimals: {
+      type: "number",
+      label: "Decimales de la variación",
+      default: 1,
+      section: "Formato",
+      order: 3
+    },
+    higherIsBetter: {
+      type: "boolean",
+      label: "Subir es positivo (verde)",
+      default: true,
+      section: "Formato",
+      order: 4
+    },
+    missingPrevious: {
+      type: "string",
+      label: "Si no hay periodo anterior",
+      display: "select",
+      values: [
+        { "Badge gris \"Sin periodo anterior\"": "neutral" },
+        { "Comparar contra 0": "zero" },
+        { "Ocultar badge": "hide" }
+      ],
+      default: "neutral",
+      section: "Formato",
+      order: 5
+    },
+    enableDrill: {
+      type: "boolean",
+      label: "Abrir detalle al dar clic",
+      default: true,
+      section: "Formato",
+      order: 6
+    },
+    showIcon: {
+      type: "boolean",
+      label: "Mostrar ícono",
+      default: true,
+      section: "Estilo",
+      order: 1
+    },
+    accentColor: {
+      type: "array",
+      label: "Color del ícono",
+      display: "color",
+      default: ["#1f4e9a"],
+      section: "Estilo",
+      order: 2
+    },
+    showCard: {
+      type: "boolean",
+      label: "Mostrar como tarjeta (borde y sombra)",
+      default: true,
+      section: "Estilo",
+      order: 3
+    }
+  },
 
-    create: function (element, config) {
-        element.innerHTML = `
+  create: function (element, config) {
+    element.innerHTML = `
       <style>
         .kpi-wrap {
           width: 100%;
@@ -184,6 +204,8 @@ looker.plugins.visualizations.add({
           color: #64748b;
         }
         .kpi-hidden { display: none !important; }
+        .kpi-card.kpi-clickable { cursor: pointer; transition: box-shadow 0.15s ease, border-color 0.15s ease; }
+        .kpi-card.kpi-clickable:hover { border-color: #c7d2e3; box-shadow: 0 4px 12px rgba(17, 24, 39, 0.08); }
       </style>
       <div class="kpi-wrap">
         <div class="kpi-card with-border" id="kpi-card">
@@ -200,69 +222,74 @@ looker.plugins.visualizations.add({
         </div>
       </div>
     `;
-    },
+  },
 
-    updateAsync: function (data, element, config, queryResponse, details, done) {
-        this.clearErrors();
+  updateAsync: function (data, element, config, queryResponse, details, done) {
+    this.clearErrors();
 
-        const dims = queryResponse.fields.dimension_like;
-        const measures = queryResponse.fields.measure_like;
+    const dims = queryResponse.fields.dimension_like;
+    const measures = queryResponse.fields.measure_like;
 
-        if (measures.length === 0) {
-            this.addError({ id: "no-measures", title: "Falta medida", message: "Selecciona al menos una medida (por ejemplo, Índice de Seguridad)." });
-            done();
-            return;
-        }
-        if (!data || data.length === 0) {
-            this.addError({ id: "no-data", title: "Sin datos", message: "La consulta no regresó resultados." });
-            done();
-            return;
-        }
+    if (measures.length === 0) {
+      this.addError({ id: "no-measures", title: "Falta medida", message: "Selecciona al menos una medida (por ejemplo, Índice de Seguridad)." });
+      done();
+      return;
+    }
+    if (!data || data.length === 0) {
+      this.addError({ id: "no-data", title: "Sin datos", message: "La consulta no regresó resultados." });
+      done();
+      return;
+    }
 
-        const $ = (id) => element.querySelector("#" + id);
-        const toNum = (v) => (v === null || v === undefined || v === "" || isNaN(Number(v))) ? null : Number(v);
+    const $ = (id) => element.querySelector("#" + id);
+    const toNum = (v) => (v === null || v === undefined || v === "" || isNaN(Number(v))) ? null : Number(v);
 
-        // ---------- Obtener valor actual y anterior ----------
-        let current = null;
-        let previous = null;
-        const m0 = measures[0].name;
+    // ---------- Obtener valor actual y anterior ----------
+    let current = null;
+    let previous = null;
+    let currentCell = null;
+    const m0 = measures[0].name;
 
-        if (dims.length > 0) {
-            // Ordena por la primera dimensión (fecha) de más antiguo a más reciente,
-            // así no importa el orden que tenga el Explore.
-            const d0 = dims[0].name;
-            const rows = data
-                .filter(r => r[m0] && toNum(r[m0].value) !== null)
-                .slice()
-                .sort((a, b) => String(a[d0].value).localeCompare(String(b[d0].value)));
+    if (dims.length > 0) {
+      // Ordena por la primera dimensión (fecha) de más antiguo a más reciente,
+      // así no importa el orden que tenga el Explore.
+      const d0 = dims[0].name;
+      const rows = data
+        .filter(r => r[m0] && toNum(r[m0].value) !== null)
+        .slice()
+        .sort((a, b) => String(a[d0].value).localeCompare(String(b[d0].value)));
 
-            if (rows.length > 0) current = toNum(rows[rows.length - 1][m0].value);
-            if (rows.length > 1) previous = toNum(rows[rows.length - 2][m0].value);
-        } else {
-            current = toNum(data[0][m0] && data[0][m0].value);
-            if (measures.length > 1) {
-                const m1 = measures[1].name;
-                previous = toNum(data[0][m1] && data[0][m1].value);
-            }
-        }
+      if (rows.length > 0) {
+        currentCell = rows[rows.length - 1][m0];
+        current = toNum(currentCell.value);
+      }
+      if (rows.length > 1) previous = toNum(rows[rows.length - 2][m0].value);
+    } else {
+      currentCell = data[0][m0] || null;
+      current = toNum(currentCell && currentCell.value);
+      if (measures.length > 1) {
+        const m1 = measures[1].name;
+        previous = toNum(data[0][m1] && data[0][m1].value);
+      }
+    }
 
-        // ---------- Texto y valor ----------
-        const decimals = Number.isFinite(config.decimals) ? config.decimals : 1;
-        const changeDecimals = Number.isFinite(config.changeDecimals) ? config.changeDecimals : 1;
+    // ---------- Texto y valor ----------
+    const decimals = Number.isFinite(config.decimals) ? config.decimals : 1;
+    const changeDecimals = Number.isFinite(config.changeDecimals) ? config.changeDecimals : 1;
 
-        $("kpi-title").textContent = config.kpiTitle || measures[0].label_short || measures[0].label;
-        $("kpi-value").textContent = current === null
-            ? "-"
-            : current.toLocaleString("es-MX", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-        $("kpi-suffix").textContent = config.valueSuffix || "";
-        $("kpi-caption").textContent = config.caption || "";
-        $("kpi-card").classList.toggle("with-border", config.showCard !== false);
+    $("kpi-title").textContent = config.kpiTitle || measures[0].label_short || measures[0].label;
+    $("kpi-value").textContent = current === null
+      ? "-"
+      : current.toLocaleString("es-MX", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    $("kpi-suffix").textContent = config.valueSuffix || "";
+    $("kpi-caption").textContent = config.caption || "";
+    $("kpi-card").classList.toggle("with-border", config.showCard !== false);
 
-        // ---------- Ícono ----------
-        const accent = (config.accentColor && config.accentColor[0]) || "#1f4e9a";
-        const iconEl = $("kpi-icon");
-        iconEl.classList.toggle("kpi-hidden", config.showIcon === false);
-        iconEl.innerHTML = `
+    // ---------- Ícono ----------
+    const accent = (config.accentColor && config.accentColor[0]) || "#1f4e9a";
+    const iconEl = $("kpi-icon");
+    iconEl.classList.toggle("kpi-hidden", config.showIcon === false);
+    iconEl.innerHTML = `
       <svg viewBox="0 0 16 16" fill="${accent}" xmlns="http://www.w3.org/2000/svg">
         <circle cx="11.5" cy="3.5" r="2"/>
         <circle cx="6" cy="6.5" r="1.8"/>
@@ -271,43 +298,62 @@ looker.plugins.visualizations.add({
         <circle cx="13" cy="13" r="1.2"/>
       </svg>`;
 
-        // ---------- Badge de variación ----------
-        const badge = $("kpi-badge");
-        const foot = $("kpi-foot");
+    // ---------- Clic para ver el detalle (drill) ----------
+    const card = $("kpi-card");
+    const links = (currentCell && currentCell.links) || [];
+    const canDrill = config.enableDrill !== false && links.length > 0;
+    card.classList.toggle("kpi-clickable", canDrill);
+    card.onclick = canDrill
+      ? (event) => LookerCharts.Utils.openDrillMenu({ links, event })
+      : null;
 
-        if (current === null || previous === null) {
-            badge.classList.add("kpi-hidden");
-            foot.classList.toggle("kpi-hidden", !config.caption);
-        } else {
-            badge.classList.remove("kpi-hidden");
-            foot.classList.remove("kpi-hidden");
+    // ---------- Badge de variación ----------
+    const badge = $("kpi-badge");
+    const foot = $("kpi-foot");
+    const missingMode = config.missingPrevious || "neutral";
 
-            let change;
-            let changeText;
-            if (config.changeMode === "absolute") {
-                change = current - previous;
-                changeText = (change > 0 ? "+" : "") +
-                    change.toLocaleString("es-MX", { minimumFractionDigits: changeDecimals, maximumFractionDigits: changeDecimals }) + " pts";
-            } else {
-                change = previous === 0 ? 0 : ((current - previous) / Math.abs(previous)) * 100;
-                changeText = (change > 0 ? "+" : "") +
-                    change.toLocaleString("es-MX", { minimumFractionDigits: changeDecimals, maximumFractionDigits: changeDecimals }) + "%";
-            }
+    // Sin periodo anterior: según la opción, compara contra 0
+    if (current !== null && previous === null && missingMode === "zero") previous = 0;
 
-            const rounded = Number(change.toFixed(changeDecimals));
-            const higherIsBetter = config.higherIsBetter !== false;
-            let state = "neutral";
-            if (rounded > 0) state = higherIsBetter ? "good" : "bad";
-            if (rounded < 0) state = higherIsBetter ? "bad" : "good";
+    if (current === null || (previous === null && missingMode === "hide")) {
+      badge.classList.add("kpi-hidden");
+      foot.classList.toggle("kpi-hidden", !config.caption);
+    } else if (previous === null) {
+      badge.classList.remove("kpi-hidden");
+      foot.classList.remove("kpi-hidden");
+      badge.className = "kpi-badge neutral";
+      badge.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="2" y1="8" x2="14" y2="8"/></svg><span>Sin periodo anterior</span>`;
+    } else {
+      badge.classList.remove("kpi-hidden");
+      foot.classList.remove("kpi-hidden");
 
-            const arrowUp = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,11.5 6,7 9,10 14.5,4.5"/><polyline points="10.5,4.5 14.5,4.5 14.5,8.5"/></svg>`;
-            const arrowDown = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,4.5 6,9 9,6 14.5,11.5"/><polyline points="10.5,11.5 14.5,11.5 14.5,7.5"/></svg>`;
-            const flat = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="2" y1="8" x2="14" y2="8"/></svg>`;
+      let change;
+      let changeText;
+      // Contra 0 no existe un porcentaje válido, así que se muestra la diferencia en pts
+      if (config.changeMode === "absolute" || previous === 0) {
+        change = current - previous;
+        changeText = (change > 0 ? "+" : "") +
+          change.toLocaleString("es-MX", { minimumFractionDigits: changeDecimals, maximumFractionDigits: changeDecimals }) + " pts";
+      } else {
+        change = ((current - previous) / Math.abs(previous)) * 100;
+        changeText = (change > 0 ? "+" : "") +
+          change.toLocaleString("es-MX", { minimumFractionDigits: changeDecimals, maximumFractionDigits: changeDecimals }) + "%";
+      }
 
-            badge.className = "kpi-badge " + state;
-            badge.innerHTML = (rounded > 0 ? arrowUp : rounded < 0 ? arrowDown : flat) + `<span>${changeText}</span>`;
-        }
+      const rounded = Number(change.toFixed(changeDecimals));
+      const higherIsBetter = config.higherIsBetter !== false;
+      let state = "neutral";
+      if (rounded > 0) state = higherIsBetter ? "good" : "bad";
+      if (rounded < 0) state = higherIsBetter ? "bad" : "good";
 
-        done();
+      const arrowUp = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,11.5 6,7 9,10 14.5,4.5"/><polyline points="10.5,4.5 14.5,4.5 14.5,8.5"/></svg>`;
+      const arrowDown = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="1.5,4.5 6,9 9,6 14.5,11.5"/><polyline points="10.5,11.5 14.5,11.5 14.5,7.5"/></svg>`;
+      const flat = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="2" y1="8" x2="14" y2="8"/></svg>`;
+
+      badge.className = "kpi-badge " + state;
+      badge.innerHTML = (rounded > 0 ? arrowUp : rounded < 0 ? arrowDown : flat) + `<span>${changeText}</span>`;
     }
+
+    done();
+  }
 });
