@@ -77,15 +77,10 @@ looker.plugins.visualizations.add({
             section: "Estilo",
             order: 4.5
         },
-        valueFormat: {
-            type: "string",
-            label: "Formato de los valores",
-            display: "select",
-            values: [
-                { "Número con sufijo (ej. 85 pts)": "suffix" },
-                { "Moneda ($500 mil / $1.5 M)": "money" }
-            ],
-            default: "suffix",
+        moneyFormat: {
+            type: "boolean",
+            label: "Valores en moneda ($500 mil / $1.5 M)",
+            default: false,
             section: "Eje Y",
             order: 0
         },
@@ -374,7 +369,7 @@ looker.plugins.visualizations.add({
         const colors = [(config.barColor && config.barColor[0]) || "#12468a"]
             .concat((config.extraColors && config.extraColors.length) ? config.extraColors : ["#f39c12", "#10b981", "#ef4444", "#8b5cf6"]);
         // Formato moneda (solo si se elige en Edit → Eje Y; por default todo sigue igual)
-        const isMoney = config.valueFormat === "money";
+        const isMoney = config.moneyFormat === true;
         const money = (v, forAxis) => {
             const n = Number(v), a = Math.abs(n);
             if (a >= 1e6) return "$" + (n / 1e6).toLocaleString("es-MX", { minimumFractionDigits: forAxis ? 1 : 2, maximumFractionDigits: forAxis ? 1 : 2 }) + " M";
