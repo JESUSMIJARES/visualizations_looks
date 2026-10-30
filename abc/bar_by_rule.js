@@ -56,6 +56,39 @@ looker.plugins.visualizations.add({
             section: "Texto",
             order: 6
         },
+        headerNote: {
+            type: "string",
+            label: "Nota a la derecha del título (ej. por mes)",
+            default: "",
+            section: "Texto",
+            order: 7
+        },
+        monthLabels: {
+            type: "boolean",
+            label: "Mostrar meses como Ene, Feb… (ordenados)",
+            default: false,
+            section: "Estilo",
+            order: 3.5
+        },
+        legendTop: {
+            type: "boolean",
+            label: "Leyenda arriba a la izquierda",
+            default: false,
+            section: "Estilo",
+            order: 4.5
+        },
+        valueFormat: {
+            type: "string",
+            label: "Formato de los valores",
+            display: "select",
+            values: [
+                { "Número con sufijo (ej. 85 pts)": "suffix" },
+                { "Moneda ($500 mil / $1.5 M)": "money" }
+            ],
+            default: "suffix",
+            section: "Eje Y",
+            order: 0
+        },
         unitSuffix: {
             type: "string",
             label: "Sufijo de unidad",
@@ -199,9 +232,12 @@ looker.plugins.visualizations.add({
       </style>
       <div class="cpr-wrap">
         <div class="cpr-card with-border" id="cpr-card">
-          <div>
-            <h2 class="cpr-title" id="cpr-title"></h2>
-            <p class="cpr-subtitle" id="cpr-subtitle"></p>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+            <div>
+              <h2 class="cpr-title" id="cpr-title"></h2>
+              <p class="cpr-subtitle" id="cpr-subtitle"></p>
+            </div>
+            <span id="cpr-note" style="font-size:12px;color:#6b7280;white-space:nowrap;"></span>
           </div>
           <div class="cpr-msg" id="cpr-msg"></div>
           <div class="cpr-canvas" id="cpr-chart"></div>
@@ -270,6 +306,7 @@ looker.plugins.visualizations.add({
         // ---------- Encabezado ----------
         element.querySelector("#cpr-title").textContent = config.chartTitle || "";
         element.querySelector("#cpr-subtitle").textContent = config.chartSubtitle || "";
+        element.querySelector("#cpr-note").textContent = config.headerNote || "";
         element.querySelector("#cpr-card").classList.toggle("with-border", config.showCard !== false);
 
         if (typeof echarts === "undefined") {
@@ -317,6 +354,17 @@ looker.plugins.visualizations.add({
                 : measures.map(m => m.label_short || m.label);
         }
 
+        // Opcional: si las barras son meses (2026-06), mostrarlas como "Jun" y en orden cronológico
+        if (config.monthLabels === true && bars.length && bars.every(b => /^\d{4}-\d{2}$/.test(String(b.name)))) {
+            const MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+            const multiYear = new Set(bars.map(b => String(b.name).slice(0, 4))).size > 1;
+            bars.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+            bars.forEach(b => {
+                const [y, m] = String(b.name).split("-");
+                b.name = MESES[parseInt(m, 10) - 1] + (multiYear ? " " + y.slice(2) : "");
+            });
+        }
+
         if (config.sortBars === "desc") bars.sort((a, b) => (b.value ?? -Infinity) - (a.value ?? -Infinity));
         if (config.sortBars === "asc") bars.sort((a, b) => (a.value ?? Infinity) - (b.value ?? Infinity));
 
@@ -325,9 +373,19 @@ looker.plugins.visualizations.add({
         const decimals = Number.isFinite(config.decimals) ? config.decimals : 1;
         const colors = [(config.barColor && config.barColor[0]) || "#12468a"]
             .concat((config.extraColors && config.extraColors.length) ? config.extraColors : ["#f39c12", "#10b981", "#ef4444", "#8b5cf6"]);
+        // Formato moneda (solo si se elige en Edit → Eje Y; por default todo sigue igual)
+        const isMoney = config.valueFormat === "money";
+        const money = (v, forAxis) => {
+            const n = Number(v), a = Math.abs(n);
+            if (a >= 1e6) return "$" + (n / 1e6).toLocaleString("es-MX", { minimumFractionDigits: forAxis ? 1 : 2, maximumFractionDigits: forAxis ? 1 : 2 }) + " M";
+            if (a >= 1e3) return "$" + Math.round(n / 1e3).toLocaleString("es-MX") + " mil";
+            return "$" + Math.round(n).toLocaleString("es-MX");
+        };
         const fmt = (v) => (v == null || isNaN(v))
             ? "-"
-            : Number(v).toLocaleString("es-MX", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) + suffix;
+            : isMoney
+                ? money(v, false)
+                : Number(v).toLocaleString("es-MX", { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) + suffix;
 
         // ---------- Eje Y ----------
         const hasNum = (v) => v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
@@ -343,18 +401,19 @@ looker.plugins.visualizations.add({
             axisLabel: {
                 color: "#6b7280",
                 fontSize: 12,
-                formatter: (v) => `${v}${suffix}`
+                formatter: (v) => isMoney ? money(v, true) : `${v}${suffix}`
             }
         };
         if (hasNum(config.yMin)) yAxis.min = Number(config.yMin);
-        if (hasNum(config.yMax)) {
+        // En moneda el máximo y el intervalo son automáticos (el 100 / 25 es para calificaciones)
+        if (!isMoney && hasNum(config.yMax)) {
             let max = Number(config.yMax);
             if (dataMax !== null && dataMax > max) {
                 max = step ? Math.ceil(dataMax / step) * step : Math.ceil(dataMax);
             }
             yAxis.max = max;
         }
-        if (step) yAxis.interval = step;
+        if (step && !isMoney) yAxis.interval = step;
 
         // ---------- Nota inferior ----------
         const showFootnote = config.showFootnote !== false && bars.length > 0;
@@ -375,8 +434,9 @@ looker.plugins.visualizations.add({
             }
         }] : [];
 
+        const legendTop = showLegend && config.legendTop === true;
         let bottomSpace = 12;
-        if (showLegend) bottomSpace += 26;
+        if (showLegend && !legendTop) bottomSpace += 26;
         if (showFootnote) bottomSpace += 26;
 
         // ---------- Opciones de ECharts ----------
@@ -393,7 +453,16 @@ looker.plugins.visualizations.add({
                 extraCssText: "box-shadow: 0 4px 12px rgba(17,24,39,0.10); border-radius: 8px;",
                 valueFormatter: fmt
             },
-            legend: {
+            legend: legendTop ? {
+                show: true,
+                top: 0,
+                left: 0,
+                icon: "roundRect",
+                itemWidth: 12,
+                itemHeight: 12,
+                itemGap: 16,
+                textStyle: { color: "#374151", fontSize: 13 }
+            } : {
                 show: showLegend,
                 bottom: 0,
                 icon: "circle",
@@ -402,7 +471,7 @@ looker.plugins.visualizations.add({
                 textStyle: { color: "#374151", fontSize: 12 }
             },
             grid: {
-                top: 16,
+                top: legendTop ? 40 : 16,
                 left: 8,
                 right: 16,
                 bottom: bottomSpace,
