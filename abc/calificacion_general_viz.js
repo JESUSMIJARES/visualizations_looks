@@ -24,13 +24,13 @@ looker.plugins.visualizations.add({
     goodFrom: { type: "number", label: "Bien desde (≥)", default: 80, section: "Semáforo", order: 2 },
     warnFrom: { type: "number", label: "Atención desde (≥)", default: 70, section: "Semáforo", order: 3 },
     decimals: { type: "number", label: "Decimales", default: 1, section: "Estilo", order: 1 },
-    showCard: { type: "boolean", label: "Mostrar como tarjeta (borde y sombra)", default: true, section: "Estilo", order: 2 }
+    showCard: { type: "boolean", label: "Mostrar como tarjeta (borde y sombra)", default: false, section: "Estilo", order: 2 }
   },
 
   create: function (element) {
     element.innerHTML = `
       <style>
-        .cg-wrap { width: 100%; height: 100%; box-sizing: border-box; padding: 6px;
+        .cg-wrap { width: 100%; height: 100%; box-sizing: border-box; padding: 0;
           font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         .cg-card { width: 100%; height: 100%; box-sizing: border-box; background: #fff; border-radius: 10px;
           padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
@@ -52,6 +52,7 @@ looker.plugins.visualizations.add({
         .cg-stat-l { font-size: 10px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: .03em; }
         .s-good { color: #15803d; background: #dcfce7; } .s-warn { color: #a16207; background: #fef3c7; }
         .s-bad { color: #b91c1c; background: #fee2e2; } .s-none { color: #64748b; background: #f1f5f9; }
+        .cg-card:not(.with-border) { padding: 4px 6px; border-radius: 0; box-shadow: none; }
       </style>
       <div class="cg-wrap">
         <div class="cg-card with-border" id="cg-card">
@@ -97,7 +98,12 @@ looker.plugins.visualizations.add({
     const MESES_L = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 
     const d0 = dims[0].name, mGen = measures[0].name;
-    const rows = data.slice().sort((a, b) => String(a[d0].value).localeCompare(String(b[d0].value)));
+    let rows = data.slice().sort((a, b) => String(a[d0].value).localeCompare(String(b[d0].value)));
+    // Quita los meses vacíos al inicio y al final (mes en curso sin datos o meses que Looker rellena)
+    const hasData = (r) => toNum(r[mGen] && r[mGen].value) !== null;
+    const firstIdx = rows.findIndex(hasData);
+    const lastIdx = rows.length - 1 - rows.slice().reverse().findIndex(hasData);
+    if (firstIdx !== -1) rows = rows.slice(firstIdx, lastIdx + 1);
     const monthOf = (r) => {
       const m = String(r[d0].value || "").match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);
       return m ? { y: m[1], i: parseInt(m[2], 10) - 1, d: m[3] ? parseInt(m[3], 10) : null } : null;

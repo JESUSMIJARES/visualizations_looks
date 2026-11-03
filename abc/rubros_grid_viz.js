@@ -11,32 +11,32 @@
  * No requiere dependencias externas.
  */
 looker.plugins.visualizations.add({
-    id: "rubros_grid",
-    label: "Rejilla de Rubros",
+  id: "rubros_grid",
+  label: "Rejilla de Rubros",
 
-    options: {
-        title: { type: "string", label: "Título", default: "Rubros", section: "Texto", order: 1 },
-        showLegend: { type: "boolean", label: "Mostrar leyenda del semáforo", default: true, section: "Texto", order: 2 },
-        showPeriod: { type: "boolean", label: "Mostrar periodo (ej. junio vs mayo)", default: true, section: "Texto", order: 3 },
-        pendingText: { type: "string", label: "Texto cuando no hay dato", default: "Pendiente de fuente", section: "Texto", order: 4 },
+  options: {
+    title: { type: "string", label: "Título", default: "Rubros", section: "Texto", order: 1 },
+    showLegend: { type: "boolean", label: "Mostrar leyenda del semáforo", default: true, section: "Texto", order: 2 },
+    showPeriod: { type: "boolean", label: "Mostrar periodo (ej. junio vs mayo)", default: true, section: "Texto", order: 3 },
+    pendingText: { type: "string", label: "Texto cuando no hay dato", default: "Pendiente de fuente", section: "Texto", order: 4 },
 
-        goodFrom: { type: "number", label: "Bien desde (≥)", default: 80, section: "Semáforo", order: 1 },
-        warnFrom: { type: "number", label: "Atención desde (≥)", default: 70, section: "Semáforo", order: 2 },
-        goodLabel: { type: "string", label: "Etiqueta Bien", default: "Bien", section: "Semáforo", order: 3 },
-        warnLabel: { type: "string", label: "Etiqueta Atención", default: "Atención", section: "Semáforo", order: 4 },
-        badLabel: { type: "string", label: "Etiqueta Crítico", default: "Crítico", section: "Semáforo", order: 5 },
+    goodFrom: { type: "number", label: "Bien desde (≥)", default: 80, section: "Semáforo", order: 1 },
+    warnFrom: { type: "number", label: "Atención desde (≥)", default: 70, section: "Semáforo", order: 2 },
+    goodLabel: { type: "string", label: "Etiqueta Bien", default: "Bien", section: "Semáforo", order: 3 },
+    warnLabel: { type: "string", label: "Etiqueta Atención", default: "Atención", section: "Semáforo", order: 4 },
+    badLabel: { type: "string", label: "Etiqueta Crítico", default: "Crítico", section: "Semáforo", order: 5 },
 
-        columns: { type: "number", label: "Columnas", default: 3, section: "Estilo", order: 1 },
-        decimals: { type: "number", label: "Decimales del valor", default: 1, section: "Estilo", order: 2 },
-        showSparkline: { type: "boolean", label: "Mostrar minitendencia", default: true, section: "Estilo", order: 3 },
-        enableDrill: { type: "boolean", label: "Abrir detalle al dar clic", default: true, section: "Estilo", order: 4 },
-        showCard: { type: "boolean", label: "Mostrar como tarjeta (borde y sombra)", default: true, section: "Estilo", order: 5 }
-    },
+    columns: { type: "number", label: "Columnas", default: 3, section: "Estilo", order: 1 },
+    decimals: { type: "number", label: "Decimales del valor", default: 1, section: "Estilo", order: 2 },
+    showSparkline: { type: "boolean", label: "Mostrar minitendencia", default: true, section: "Estilo", order: 3 },
+    enableDrill: { type: "boolean", label: "Abrir detalle al dar clic", default: true, section: "Estilo", order: 4 },
+    showCard: { type: "boolean", label: "Mostrar como tarjeta (borde y sombra)", default: false, section: "Estilo", order: 5 }
+  },
 
-    create: function (element) {
-        element.innerHTML = `
+  create: function (element) {
+    element.innerHTML = `
       <style>
-        .rg-wrap { width: 100%; height: 100%; box-sizing: border-box; padding: 6px;
+        .rg-wrap { width: 100%; height: 100%; box-sizing: border-box; padding: 0;
           font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         .rg-card { width: 100%; height: 100%; box-sizing: border-box; background: #fff;
           border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; overflow: auto; }
@@ -68,6 +68,7 @@ looker.plugins.visualizations.add({
         .s-warn { color: #b45309; background: #fef3c7; border-color: #fde68a; }
         .s-bad  { color: #b91c1c; background: #fee2e2; border-color: #fecaca; }
         .s-none { color: #64748b; background: #f1f5f9; border-color: #e2e8f0; }
+        .rg-card:not(.with-border) { padding: 4px 6px; border-radius: 0; box-shadow: none; }
       </style>
       <div class="rg-wrap">
         <div class="rg-card with-border" id="rg-card">
@@ -79,123 +80,127 @@ looker.plugins.visualizations.add({
           <div class="rg-grid" id="rg-grid"></div>
         </div>
       </div>`;
-    },
+  },
 
-    updateAsync: function (data, element, config, queryResponse, details, done) {
-        this.clearErrors();
-        const dims = queryResponse.fields.dimension_like;
-        const measures = queryResponse.fields.measure_like;
+  updateAsync: function (data, element, config, queryResponse, details, done) {
+    this.clearErrors();
+    const dims = queryResponse.fields.dimension_like;
+    const measures = queryResponse.fields.measure_like;
 
-        if (measures.length === 0) {
-            this.addError({ id: "no-measures", title: "Faltan medidas", message: "Agrega una medida por rubro (Seguridad, Conducción RPM, Daño Motor…)." });
-            done(); return;
-        }
+    if (measures.length === 0) {
+      this.addError({ id: "no-measures", title: "Faltan medidas", message: "Agrega una medida por rubro (Seguridad, Conducción RPM, Daño Motor…)." });
+      done(); return;
+    }
 
-        const $ = (id) => element.querySelector("#" + id);
-        const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-        const toNum = (v) => (v === null || v === undefined || v === "" || isNaN(Number(v))) ? null : Number(v);
+    const $ = (id) => element.querySelector("#" + id);
+    const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const toNum = (v) => (v === null || v === undefined || v === "" || isNaN(Number(v))) ? null : Number(v);
 
-        const goodFrom = Number.isFinite(config.goodFrom) ? config.goodFrom : 80;
-        const warnFrom = Number.isFinite(config.warnFrom) ? config.warnFrom : 70;
-        const labels = {
-            good: config.goodLabel || "Bien",
-            warn: config.warnLabel || "Atención",
-            bad: config.badLabel || "Crítico"
-        };
-        const decimals = Number.isFinite(config.decimals) ? config.decimals : 1;
-        const pendingText = config.pendingText || "Pendiente de fuente";
-        const COLORS = { good: "#16a34a", warn: "#d97706", bad: "#dc2626", none: "#94a3b8" };
-        const stateOf = (v) => v === null ? "none" : v >= goodFrom ? "good" : v >= warnFrom ? "warn" : "bad";
-        const fmt = (v, d) => v.toLocaleString("es-MX", { minimumFractionDigits: d, maximumFractionDigits: d });
+    const goodFrom = Number.isFinite(config.goodFrom) ? config.goodFrom : 80;
+    const warnFrom = Number.isFinite(config.warnFrom) ? config.warnFrom : 70;
+    const labels = {
+      good: config.goodLabel || "Bien",
+      warn: config.warnLabel || "Atención",
+      bad: config.badLabel || "Crítico"
+    };
+    const decimals = Number.isFinite(config.decimals) ? config.decimals : 1;
+    const pendingText = config.pendingText || "Pendiente de fuente";
+    const COLORS = { good: "#16a34a", warn: "#d97706", bad: "#dc2626", none: "#94a3b8" };
+    const stateOf = (v) => v === null ? "none" : v >= goodFrom ? "good" : v >= warnFrom ? "warn" : "bad";
+    const fmt = (v, d) => v.toLocaleString("es-MX", { minimumFractionDigits: d, maximumFractionDigits: d });
 
-        // ---------- Orden por periodo ----------
-        let rows = data.slice();
-        if (dims.length > 0) {
-            const d0 = dims[0].name;
-            rows.sort((a, b) => String(a[d0].value).localeCompare(String(b[d0].value)));
-        }
-        const last = rows[rows.length - 1];
-        const prev = rows.length > 1 ? rows[rows.length - 2] : null;
+    // ---------- Orden por periodo ----------
+    let rows = data.slice();
+    if (dims.length > 0) {
+      const d0 = dims[0].name;
+      rows.sort((a, b) => String(a[d0].value).localeCompare(String(b[d0].value)));
+    }
+    // Quita los meses sin ningún dato al inicio y al final (mes en curso o meses que Looker rellena)
+    const rowHasData = (r) => measures.some(m => toNum(r[m.name] && r[m.name].value) !== null);
+    while (rows.length > 1 && !rowHasData(rows[rows.length - 1])) rows.pop();
+    while (rows.length > 1 && !rowHasData(rows[0])) rows.shift();
+    const last = rows[rows.length - 1];
+    const prev = rows.length > 1 ? rows[rows.length - 2] : null;
 
-        // ---------- Encabezado ----------
-        $("rg-title").textContent = config.title || "";
-        $("rg-card").classList.toggle("with-border", config.showCard !== false);
+    // ---------- Encabezado ----------
+    $("rg-title").textContent = config.title || "";
+    $("rg-card").classList.toggle("with-border", config.showCard !== false);
 
-        const legend = $("rg-legend");
-        legend.style.display = config.showLegend === false ? "none" : "";
-        legend.innerHTML =
-            `<span class="rg-chip s-good">● ≥ ${goodFrom} ${esc(labels.good)}</span>` +
-            `<span class="rg-chip s-warn">▲ ${warnFrom}–${goodFrom} ${esc(labels.warn)}</span>` +
-            `<span class="rg-chip s-bad">◆ &lt; ${warnFrom} ${esc(labels.bad)}</span>`;
+    const legend = $("rg-legend");
+    legend.style.display = config.showLegend === false ? "none" : "";
+    legend.innerHTML =
+      `<span class="rg-chip s-good">● ≥ ${goodFrom} ${esc(labels.good)}</span>` +
+      `<span class="rg-chip s-warn">▲ ${warnFrom}–${goodFrom} ${esc(labels.warn)}</span>` +
+      `<span class="rg-chip s-bad">◆ &lt; ${warnFrom} ${esc(labels.bad)}</span>`;
 
-        const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
-        const periodName = (row) => {
-            if (!row || dims.length === 0) return "";
-            const raw = String(row[dims[0].name].value || "");
-            const m = raw.match(/^(\d{4})-(\d{2})/);
-            return m ? MESES[parseInt(m[2], 10) - 1] : LookerCharts.Utils.textForCell(row[dims[0].name]);
-        };
-        const periodEl = $("rg-period");
-        periodEl.style.display = config.showPeriod === false ? "none" : "";
-        periodEl.textContent = prev ? `${periodName(last)} vs ${periodName(prev)}` : periodName(last);
+    const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+    const periodName = (row) => {
+      if (!row || dims.length === 0) return "";
+      const raw = String(row[dims[0].name].value || "");
+      const m = raw.match(/^(\d{4})-(\d{2})/);
+      return m ? MESES[parseInt(m[2], 10) - 1] : LookerCharts.Utils.textForCell(row[dims[0].name]);
+    };
+    const periodEl = $("rg-period");
+    periodEl.style.display = config.showPeriod === false ? "none" : "";
+    periodEl.textContent = prev ? `${periodName(last)} vs ${periodName(prev)}` : periodName(last);
 
-        // ---------- Minitendencia (SVG) ----------
-        const sparkline = (values, color) => {
-            const pts = values.map((v, i) => ({ v, i })).filter(p => p.v !== null);
-            if (pts.length < 2) return "";
-            const W = 120, H = 36, pad = 3;
-            const min = Math.min(...pts.map(p => p.v)), max = Math.max(...pts.map(p => p.v));
-            const span = max - min || 1;
-            const n = values.length - 1 || 1;
-            const xy = pts.map(p => [pad + (p.i / n) * (W - pad * 2), pad + (1 - (p.v - min) / span) * (H - pad * 2)]);
-            const line = xy.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
-            const area = `${line} L${xy[xy.length - 1][0].toFixed(1)},${H} L${xy[0][0].toFixed(1)},${H} Z`;
-            const lastPt = xy[xy.length - 1];
-            return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    // ---------- Minitendencia (SVG) ----------
+    const sparkline = (values, color) => {
+      const pts = values.map((v, i) => ({ v, i })).filter(p => p.v !== null);
+      if (pts.length < 2) return "";
+      const W = 120, H = 36, pad = 3;
+      const min = Math.min(...pts.map(p => p.v)), max = Math.max(...pts.map(p => p.v));
+      const span = max - min || 1;
+      const n = values.length - 1 || 1;
+      const xy = pts.map(p => [pad + (p.i / n) * (W - pad * 2), pad + (1 - (p.v - min) / span) * (H - pad * 2)]);
+      const line = xy.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+      const area = `${line} L${xy[xy.length - 1][0].toFixed(1)},${H} L${xy[0][0].toFixed(1)},${H} Z`;
+      const lastPt = xy[xy.length - 1];
+      return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
         <path d="${area}" fill="${color}" fill-opacity="0.15" stroke="none"/>
         <path d="${line}" fill="none" stroke="${color}" stroke-width="1.8" vector-effect="non-scaling-stroke"/>
         <circle cx="${lastPt[0].toFixed(1)}" cy="${lastPt[1].toFixed(1)}" r="2.6" fill="${color}"/>
       </svg>`;
-        };
+    };
 
-        // ---------- Tarjetas ----------
-        const cols = Math.max(1, Math.round(Number.isFinite(config.columns) ? config.columns : 3));
-        const grid = $("rg-grid");
-        grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+    // ---------- Tarjetas ----------
+    const cols = Math.max(1, Math.round(Number.isFinite(config.columns) ? config.columns : 3));
+    const grid = $("rg-grid");
+    grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
 
-        const arrowUp = "▲", arrowDown = "▼", flat = "■";
-        const linksByIndex = [];
+    const arrowUp = "▲", arrowDown = "▼", flat = "■";
+    const linksByIndex = [];
 
-        grid.innerHTML = measures.map((m, idx) => {
-            const name = m.label_short || m.label;
-            const help = m.description || name;
-            const cur = last ? toNum(last[m.name] && last[m.name].value) : null;
-            const before = prev ? toNum(prev[m.name] && prev[m.name].value) : null;
-            const series = rows.map(r => toNum(r[m.name] && r[m.name].value));
-            const state = stateOf(cur);
-            const color = COLORS[state];
-            linksByIndex[idx] = (last && last[m.name] && last[m.name].links) || [];
+    grid.innerHTML = measures.map((m, idx) => {
+      const name = m.label_short || m.label;
+      const help = m.description || name;
+      const cur = last ? toNum(last[m.name] && last[m.name].value) : null;
+      const before = prev ? toNum(prev[m.name] && prev[m.name].value) : null;
+      const series = rows.map(r => toNum(r[m.name] && r[m.name].value));
+      const state = stateOf(cur);
+      const color = COLORS[state];
+      linksByIndex[idx] = (last && last[m.name] && last[m.name].links) || [];
 
-            let valueHtml, badgeHtml, deltaHtml = "";
-            if (cur === null) {
-                valueHtml = `<div class="rg-value pending">—</div>`;
-                badgeHtml = `<span class="rg-badge s-none">${esc(pendingText)}</span>`;
-            } else {
-                valueHtml = `<div class="rg-value">${fmt(cur, decimals)}</div>`;
-                const icon = state === "good" ? "●" : state === "warn" ? "▲" : "◆";
-                badgeHtml = `<span class="rg-badge s-${state}">${icon} ${esc(labels[state])}</span>`;
-                if (before !== null) {
-                    const diff = Number((cur - before).toFixed(decimals));
-                    const dColor = diff > 0 ? COLORS.good : diff < 0 ? COLORS.bad : COLORS.none;
-                    const dIcon = diff > 0 ? arrowUp : diff < 0 ? arrowDown : flat;
-                    deltaHtml = `<span class="rg-delta" style="color:${dColor}">${dIcon} ${fmt(Math.abs(diff), decimals)}</span>`;
-                }
-            }
+      let valueHtml, badgeHtml, deltaHtml = "";
+      if (cur === null) {
+        valueHtml = `<div class="rg-value pending">—</div>`;
+        badgeHtml = `<span class="rg-badge s-none">${esc(pendingText)}</span>`;
+      } else {
+        valueHtml = `<div class="rg-value">${fmt(cur, decimals)}</div>`;
+        const icon = state === "good" ? "●" : state === "warn" ? "▲" : "◆";
+        badgeHtml = `<span class="rg-badge s-${state}">${icon} ${esc(labels[state])}</span>`;
+        if (before !== null) {
+          const diff = Number((cur - before).toFixed(decimals));
+          const dColor = diff > 0 ? COLORS.good : diff < 0 ? COLORS.bad : COLORS.none;
+          const dIcon = diff > 0 ? arrowUp : diff < 0 ? arrowDown : flat;
+          deltaHtml = `<span class="rg-delta" style="color:${dColor}">${dIcon} ${fmt(Math.abs(diff), decimals)}</span>`;
+        }
+      }
 
-            const spark = config.showSparkline !== false && dims.length > 0 ? sparkline(series, color) : "";
-            const clickable = config.enableDrill !== false && linksByIndex[idx].length > 0;
+      const spark = config.showSparkline !== false && dims.length > 0 ? sparkline(series, color) : "";
+      const clickable = config.enableDrill !== false && linksByIndex[idx].length > 0;
 
-            return `
+      return `
         <div class="rg-item${clickable ? " clickable" : ""}" data-idx="${idx}">
           <div class="rg-item-top">
             <span class="rg-name">${esc(name)}</span>
@@ -206,16 +211,16 @@ looker.plugins.visualizations.add({
             <div class="rg-spark">${spark}</div>
           </div>
         </div>`;
-        }).join("");
+    }).join("");
 
-        // ---------- Clic para abrir el detalle ----------
-        grid.querySelectorAll(".rg-item.clickable").forEach(el => {
-            el.addEventListener("click", (event) => {
-                const links = linksByIndex[Number(el.getAttribute("data-idx"))];
-                if (links && links.length) LookerCharts.Utils.openDrillMenu({ links, event });
-            });
-        });
+    // ---------- Clic para abrir el detalle ----------
+    grid.querySelectorAll(".rg-item.clickable").forEach(el => {
+      el.addEventListener("click", (event) => {
+        const links = linksByIndex[Number(el.getAttribute("data-idx"))];
+        if (links && links.length) LookerCharts.Utils.openDrillMenu({ links, event });
+      });
+    });
 
-        done();
-    }
+    done();
+  }
 });
