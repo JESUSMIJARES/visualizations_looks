@@ -79,6 +79,17 @@ looker.plugins.visualizations.add({
         .cp-dist .bar { height:9px; border-radius:999px; background:var(--track); overflow:hidden; }
         .cp-dist .bar div { height:100%; border-radius:999px; }
         .cp-dist b { font-weight:700; text-align:right; }
+        .cp-meta { display:flex; align-items:center; gap:10px; margin-bottom:8px; font-size:11px; color:var(--muted); }
+        .cp-meta b { color:var(--good); }
+        .cp-mbar { margin-left:auto; width:110px; height:6px; border-radius:999px; background:var(--orange); overflow:hidden; }
+        .cp-mbar div { height:100%; background:var(--good); }
+        .cp-money { display:grid; grid-template-columns:auto 1fr 1fr 1fr; gap:5px; align-items:center; }
+        .cp-money .h { font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); text-align:center; }
+        .cp-money .lg { font-size:11.5px; font-weight:600; color:var(--good); padding-right:6px; }
+        .cp-money .lp { font-size:11.5px; font-weight:600; color:var(--orange); padding-right:6px; }
+        .cp-mcell { border:1px solid var(--line); border-radius:6px; padding:6px 10px; text-align:right; font-size:15px; font-weight:700; font-variant-numeric:tabular-nums; }
+        .cp-mcell.g { color:var(--good); } .cp-mcell.o { color:var(--orange); }
+        .cp-mcell.hl { border:2px solid #3b82f6; padding:5px 9px; }
         .cp-empty { font-size:12.5px; color:var(--muted); line-height:1.5; }
         .cp-click { cursor:pointer; }
       </style>
@@ -111,10 +122,21 @@ looker.plugins.visualizations.add({
             act: M(/^vehiculos_activos$/), vel: M(/^velocidad_maxima$/), dano: M(/^eventos_dano_rpm$/), rpm: M(/^rpm_maxima$/),
             hRal: M(/^horas_ralenti$/), hMot: M(/^horas_motor$/), lRal: M(/^litros_ralenti$/), lTot: M(/^litros_combustible$/),
             cRal: M(/^costo_ralenti$/),
+            cCond: M(/^costo_conduccion$/), aRend: M(/^ahorro_rendimiento$/), aRal: M(/^ahorro_ralenti$/),
+            pRend: M(/^por_lograr_rendimiento$/), pRal: M(/^por_lograr_ralenti$/), aTot: M(/^ahorro_logrado$/), pTot: M(/^ahorro_por_lograr$/),
+            rReal: M(/^rendimiento_real$/), rEsp: M(/^rendimiento_esperado$/),
             v75: M(/^horas_75_85$/), v85: M(/^horas_85_95$/), v95: M(/^horas_95_105$/), v105: M(/^horas_105_115$/), v115: M(/^horas_115$/)
         };
         const first = data[0] || {};
-        const top = (k) => f[k] ? toNum(first[f[k]] && first[f[k]].value) : null;
+        const rubroKey0 = dRubro && data[0] ? String(data[0][dRubro.name].value || "") : "";
+        // En Combustible cada fila es una clase de vehículo: los totales se suman entre filas.
+        // En los demás rubros todas las filas traen el mismo total: se lee la primera.
+        const top = (k) => {
+            if (!f[k]) return null;
+            if (rubroKey0 !== "combustible") return toNum(first[f[k]] && first[f[k]].value);
+            const vals = data.map(r => toNum(r[f[k]] && r[f[k]].value)).filter(v => v !== null);
+            return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
+        };
         const linksOf = (k) => (f[k] && first[f[k]] && first[f[k]].links) || [];
 
         const RUBROS = {
@@ -225,12 +247,40 @@ looker.plugins.visualizations.add({
                     ev !== null ? { v: perAct(ev), l: "eventos por vehículo activo" } : null,
                     rpm !== null ? { v: n0(rpm), l: "RPM máxima" } : null
                 ]);
+        } else if (rubroKey === "combustible") {
+            const lT = top("lTot"), lR = top("lRal"), cR = top("cRal"), cC = top("cCond");
+            const aT = top("aTot"), pT = top("pTot");
+            const lC = lT !== null ? lT - (lR || 0) : null;
+            const pctLog = (aT !== null && pT !== null && aT + pT > 0) ? aT / (aT + pT) * 100 : null;
+            const cell = (v, cls, hl) => `<div class="cp-mcell ${cls}${hl ? " hl" : ""}">${v === null ? "—" : money(v)}</div>`;
+            const clases = data.map(r => ({
+                name: LookerCharts.Utils.textForCell(r[dComp.name]),
+                real: f.rReal ? toNum(r[f.rReal] && r[f.rReal].value) : null,
+                esp: f.rEsp ? toNum(r[f.rEsp] && r[f.rEsp].value) : null
+            })).filter(x => x.name && x.name !== "∅" && x.real !== null);
+            const d2 = (v) => v === null ? "—" : v.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            body = `<div><div class="cp-sec">Combustible utilizado</div>` + kpis([
+                lC !== null ? { v: n0(lC) + " L", l: "Conduciendo", s: cC !== null ? money(cC) : "" } : null,
+                lR !== null ? { v: n0(lR) + " L", l: "Ralentí", s: [lT ? n1(lR / lT * 100) + "%" : "", cR !== null ? money(cR) : ""].filter(Boolean).join(" · ") } : null
+            ]) + `</div>`
+                + `<div><div class="cp-meta"><span class="cp-sec" style="margin:0">Meta</span>${pctLog !== null ? `<div class="cp-mbar"><div style="width:${pctLog}%"></div></div><span><b>${Math.round(pctLog)}%</b> logrado</span>` : ""}</div>
+           <div class="cp-money">
+             <span></span><span class="h">Rendimiento</span><span class="h">Ralentí</span><span class="h">Total</span>
+             <span class="lg">Ahorro logrado</span>${cell(top("aRend"), "g")}${cell(top("aRal"), "g")}${cell(aT, "g")}
+             <span class="lp">Ahorro por lograr</span>${cell(top("pRend"), "o")}${cell(top("pRal"), "o")}${cell(pT, "o", true)}
+           </div></div>`
+                + (clases.length ? `<div><div class="cp-sec">Rendimiento</div><table class="cp"><thead><tr><th>Clase</th><th>Real km/L</th><th>Esperado</th><th>Diferencia</th></tr></thead><tbody>${clases.map(x => {
+                    const d = (x.real !== null && x.esp !== null) ? x.real - x.esp : null;
+                    const c = d === null ? "var(--muted)" : d >= 0 ? "var(--good)" : "var(--bad)";
+                    return `<tr><td>${esc(x.name)}</td><td>${d2(x.real)}</td><td>${d2(x.esp)}</td><td><span class="val" style="color:${c}">${d === null ? "—" : (d >= 0 ? "▲ " : "▼ ") + d2(Math.abs(d))}</span></td></tr>`;
+                }).join("")
+                    }</tbody></table></div>` : "");
         } else {
             body = kpis([{ v: n0(sumEv), l: "eventos" }]) + (table() || `<div class="cp-empty">Este rubro no tiene componentes.</div>`);
         }
 
         // ---------- Distribución de unidades ----------
-        const dist = (rubroKey && rubroKey !== "general") ? [
+        const dist = (rubroKey && rubroKey !== "general" && rubroKey !== "combustible") ? [
             { label: "Bien", icon: "●", color: "var(--good)", k: "b" },
             { label: "Atención", icon: "▲", color: "var(--warn)", k: "a" },
             { label: "Crítico", icon: "◆", color: "var(--bad)", k: "c" }

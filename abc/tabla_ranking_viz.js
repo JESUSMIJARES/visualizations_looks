@@ -123,9 +123,17 @@ looker.plugins.visualizations.add({
         const mExtraF = byName(/velocidad_maxima$/);
         const [mCal, mAct, mVeh, mKm, mIn, mOut, mExtra] = [mCalF, mActF, mVehF, mKmF, mInF, mOutF, mExtraF].map(m => m ? m.name : null);
         const val = (r, m) => m ? toNum(r[m] && r[m].value) : null;
+        // Modo Combustible: el filtro Rubro = Combustible (la medida toma ese nombre). Se mide en pesos, no en calificación.
+        const norm = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+        const mLog = (byName(/^ahorro_logrado$/) || {}).name || null;
+        const mPor = (byName(/^ahorro_por_lograr$/) || {}).name || null;
+        const mReal = (byName(/^rendimiento_real$/) || {}).name || null;
+        const mEsp = (byName(/^rendimiento_esperado$/) || {}).name || null;
+        const comb = !!mPor && norm(mCalF && (mCalF.label_short || mCalF.label)).endsWith("combustible");
+        const mMain = comb ? mPor : mCal;
 
         const months = dMonth ? [...new Set(data.map(r => String(r[dMonth.name].value)))].filter(m => /^\d{4}-\d{2}$/.test(m)).sort() : ["_"];
-        const monthHasData = (m) => data.some(r => (!dMonth || String(r[dMonth.name].value) === m) && val(r, mCal) !== null);
+        const monthHasData = (m) => data.some(r => (!dMonth || String(r[dMonth.name].value) === m) && val(r, mMain) !== null);
         const withData = months.filter(monthHasData);
         const lastMonth = withData[withData.length - 1] || months[months.length - 1];
         const prevMonth = withData.length > 1 ? withData[withData.length - 2] : null;
@@ -141,8 +149,11 @@ looker.plugins.visualizations.add({
             if (!items.has(name)) items.set(name, { name, extras: [], byMonth: {}, links: [] });
             const it = items.get(name);
             if (dExtras.length && !it.extras.length) it.extras = dExtras.map(d => LookerCharts.Utils.textForCell(r[d.name])).filter(x => x && x !== "∅");
-            it.byMonth[m] = { cal: val(r, mCal), act: val(r, mAct), veh: val(r, mVeh), km: val(r, mKm), inM: val(r, mIn), outM: val(r, mOut), extra: val(r, mExtra) };
-            if (m === lastMonth) it.links = (r[mCal] && r[mCal].links) || [];
+            it.byMonth[m] = {
+                cal: val(r, mCal), act: val(r, mAct), veh: val(r, mVeh), km: val(r, mKm), inM: val(r, mIn), outM: val(r, mOut), extra: val(r, mExtra),
+                log: val(r, mLog), por: val(r, mPor), real: val(r, mReal), esp: val(r, mEsp)
+            };
+            if (m === lastMonth) it.links = (r[mMain] && r[mMain].links) || [];
         });
 
         let rows = [...items.values()].map(it => {
@@ -152,10 +163,12 @@ looker.plugins.visualizations.add({
                 name: it.name, extras: it.extras, links: it.links,
                 cal: cur.cal ?? null, act: cur.act ?? null, veh: cur.veh ?? null, km: cur.km ?? null,
                 inM: cur.inM ?? null, outM: cur.outM ?? null, extra: cur.extra ?? null,
-                delta: (cur.cal != null && prev.cal != null) ? cur.cal - prev.cal : null,
-                trend: trendMonths.map(m => it.byMonth[m] ? it.byMonth[m].cal : null)
+                log: cur.log ?? null, por: cur.por ?? null, real: cur.real ?? null, esp: cur.esp ?? null,
+                delta: comb ? ((cur.por != null && prev.por != null) ? cur.por - prev.por : null)
+                    : ((cur.cal != null && prev.cal != null) ? cur.cal - prev.cal : null),
+                trend: trendMonths.map(m => it.byMonth[m] ? (comb ? it.byMonth[m].por : it.byMonth[m].cal) : null)
             };
-        }).filter(r => r.cal !== null);
+        }).filter(r => comb ? r.por !== null : r.cal !== null);
 
         // ---------- Nivel superior e Impacto ----------
         const totalAct = rows.reduce((s, r) => s + (r.act || 0), 0);
@@ -165,11 +178,15 @@ looker.plugins.visualizations.add({
         });
 
         // ---------- Posición (1 = mejor calificación) ----------
-        rows.slice().sort((a, b) => b.cal - a.cal).forEach((r, i) => { r.pos = i + 1; });
+        // En Combustible: 1 = menos ahorro por lograr por vehículo activo
+        const porVeh = (r) => r.act ? r.por / r.act : r.por;
+        if (comb) rows.slice().sort((a, b) => porVeh(a) - porVeh(b)).forEach((r, i) => { r.pos = i + 1; });
+        else rows.slice().sort((a, b) => b.cal - a.cal).forEach((r, i) => { r.pos = i + 1; });
 
         // ---------- Orden ----------
         const by = config.sortBy || "impact";
-        if (by === "impact") rows.sort((a, b) => (a.impact ?? 0) - (b.impact ?? 0));
+        if (comb) rows.sort((a, b) => (b.por ?? 0) - (a.por ?? 0));
+        else if (by === "impact") rows.sort((a, b) => (a.impact ?? 0) - (b.impact ?? 0));
         else if (by === "scoreAsc") rows.sort((a, b) => a.cal - b.cal);
         else if (by === "scoreDesc") rows.sort((a, b) => b.cal - a.cal);
         else if (by === "km") rows.sort((a, b) => (b.km ?? -1) - (a.km ?? -1));
@@ -228,13 +245,51 @@ looker.plugins.visualizations.add({
             showTrend ? `<th>Tendencia</th>` : ""
         ].join("");
 
+        const money = (v) => {
+            if (v === null || v === undefined) return "—";
+            const a = Math.abs(v);
+            if (a >= 1e6) return "$" + (v / 1e6).toLocaleString("es-MX", { maximumFractionDigits: 2 }) + " M";
+            if (a >= 1e4) return "$" + Math.round(v / 1e3).toLocaleString("es-MX") + " mil";
+            return "$" + Math.round(v).toLocaleString("es-MX");
+        };
+        const d2 = (v) => v === null ? "—" : v.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const deltaMoney = (d) => {
+            if (d === null) return `<span class="delta" style="color:var(--faint)">—</span>`;
+            const c = d < 0 ? "var(--good)" : d > 0 ? "var(--bad)" : "var(--muted)";
+            return `<span class="delta" style="color:${c}">${d < 0 ? "▼" : d > 0 ? "▲" : "■"} ${money(Math.abs(d))}</span>`;
+        };
         const total = rows.length;
         const actCell = (r) => {
             if (r.act === null) return "—";
             if (r.veh === null || !r.veh) return n0(r.act);
             return `${n0(r.act)}<small class="of">de ${n0(r.veh)} · ${Math.round(r.act / r.veh * 100)}%</small>`;
         };
-        const body = rows.map((r, i) => `
+        const showRend = comb && showUnit && !!mReal;
+        const showMetaC = comb && !showUnit && !!mIn && !!mOut;
+        const headC = [
+            `<th class="l">${esc(config.nameHeader || auto[1])}</th>`,
+            showUnit ? `<th class="l">${esc(config.extraDimsHeader || "Unidad")}</th>` : "",
+            showKm ? `<th>Km</th>` : "",
+            showMetaC ? `<th>En meta</th>` : "",
+            showPos && !showUnit ? `<th>Pos.</th>` : "",
+            showRend ? `<th title="Rendimiento real / esperado (km/L)">Rend./esp.</th>` : "",
+            showUnit ? `<th>Logrado</th>` : `<th>Logrado · por veh.</th>`,
+            `<th>Por lograr</th>`,
+            showTrend ? `<th>Tendencia</th>` : ""
+        ].join("");
+        const bodyC = rows.map((r, i) => `
+      <tr data-i="${i}" class="${r.links.length ? "click" : ""}">
+        <td class="l name" title="${esc(r.name)}">${esc(r.name)}</td>
+        ${showUnit ? `<td class="l unit">${esc(r.extras[0] || "")}${r.extras.length > 1 ? `<small>${esc(r.extras.slice(1).join(" · "))}</small>` : ""}</td>` : ""}
+        ${showKm ? `<td>${km(r.km)}</td>` : ""}
+        ${showMetaC ? `<td class="meta"><span class="g">${r.inM ?? 0}</span><span class="s">/</span><span class="r">${r.outM ?? 0}</span></td>` : ""}
+        ${showPos && !showUnit ? `<td class="pos"><b>${r.pos}°</b><small class="of">de ${total}</small></td>` : ""}
+        ${showRend ? `<td style="line-height:1.15"><b style="color:${r.real !== null && r.esp !== null && r.real < r.esp ? "var(--bad)" : "var(--good)"}">${d2(r.real)}</b><small class="of" style="display:block">${d2(r.esp)}</small></td>` : ""}
+        <td style="color:var(--good)">${money(r.log)}${!showUnit && r.act ? `<small class="of">${money(r.log / r.act)}</small>` : ""}</td>
+        <td style="color:#ea580c;font-weight:600">${money(r.por)}</td>
+        ${showTrend ? `<td><div class="trend">${spark(r.trend)}${deltaMoney(r.delta)}</div></td>` : ""}
+      </tr>`).join("");
+        const body = comb ? bodyC : rows.map((r, i) => `
       <tr data-i="${i}" class="${r.links.length ? "click" : ""}">
         <td class="l name" title="${esc(r.name)}">${esc(r.name)}</td>
         ${showUnit ? `<td class="l unit">${esc(r.extras[0] || "")}${r.extras.length > 1 ? `<small>${esc(r.extras.slice(1).join(" · "))}</small>` : ""}</td>` : ""}
@@ -248,13 +303,19 @@ looker.plugins.visualizations.add({
         ${showTrend ? `<td><div class="trend">${spark(r.trend)}${deltaHtml(r.delta)}</div></td>` : ""}
       </tr>`).join("");
 
-        $("tk-table").innerHTML = total ? `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>` : `<tbody><tr><td class="tk-empty">Sin datos</td></tr></tbody>`;
+        $("tk-table").innerHTML = total ? `<thead><tr>${comb ? headC : head}</tr></thead><tbody>${body}</tbody>` : `<tbody><tr><td class="tk-empty">Sin datos</td></tr></tbody>`;
 
         // ---------- Encabezado ----------
         $("tk-title").innerHTML = `${esc(config.tableTitle || auto[0])}${config.showCount !== false ? `<span>${total}</span>` : ""}`;
         // A la derecha: el rubro seleccionado (la medida toma su nombre del filtro Rubro)
         const rubroLabel = mCalF ? (mCalF.label_short || mCalF.label || "") : "";
-        $("tk-right").textContent = config.rightText || rubroLabel.replace(/^.*?\s[-–]\s/, "");
+        if (comb && !config.rightText) {
+            const sIn = rows.reduce((t, r) => t + (r.inM || 0), 0), sOut = rows.reduce((t, r) => t + (r.outM || 0), 0);
+            $("tk-right").innerHTML = showUnit || !mIn ? "Ahorro por lograr"
+                : `<b style="color:var(--good)">${sIn}</b> en meta · <b style="color:var(--bad)">${sOut}</b> fuera`;
+        } else {
+            $("tk-right").textContent = config.rightText || rubroLabel.replace(/^.*?\s[-–]\s/, "");
+        }
 
         // ---------- Clic: detalle de las unidades del elemento ----------
         element.querySelectorAll("#tk-table tr[data-i]").forEach(tr => {

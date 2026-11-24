@@ -157,7 +157,7 @@ looker.plugins.visualizations.add({
                     deltaHtml = `<span class="rs-delta" style="color:${c}">${d > 0 ? "▲" : d < 0 ? "▼" : "■"} ${d1(Math.abs(d))}${vs}</span>`;
                 }
             }
-            const sel = !isMoney && selName && norm(name) === selName;
+            const sel = !!selName && norm(name) === selName;
             return `<div class="rs-card${sel ? " sel" : ""}${linksBy[i].length ? " click" : ""}" data-i="${i}" title="${esc(m.description || name)}">
         <span class="rs-name">${esc(name)}</span>
         <div class="rs-row">${valHtml}${extra}<div class="rs-spark">${spark(series, color)}</div></div>
