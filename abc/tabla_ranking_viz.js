@@ -61,27 +61,27 @@ looker.plugins.visualizations.add({
         .tk-wrap.dark { --bg:#111827; --text:#f1f5f9; --muted:#94a3b8; --faint:#64748b; --line:#1f2937; --head:#cbd5e1; --spark:#60a5fa;
           --good:#22c55e; --warn:#eab308; --bad:#ef4444; }
         .tk-head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; gap:10px; }
-        .tk-title { margin:0; font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--head); }
+        .tk-title { margin:0; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--head); }
         .tk-title span { color:var(--muted); font-weight:500; margin-left:8px; letter-spacing:.04em; }
-        .tk-right { font-size:11.5px; color:var(--muted); white-space:nowrap; }
+        .tk-right { font-size:11px; color:var(--muted); white-space:nowrap; }
         .tk-scroll { flex:1; overflow:auto; }
-        table.tk { width:100%; border-collapse:collapse; font-size:13px; color:var(--text); font-family:inherit; }
+        table.tk { width:100%; border-collapse:collapse; font-size:12px; color:var(--text); font-family:inherit; }
         .tk th { position:sticky; top:0; z-index:1; background:var(--bg); font-size:9.5px; font-weight:600; letter-spacing:.06em;
           text-transform:uppercase; color:var(--muted); padding:5px 6px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; }
         .tk th.l, .tk td.l { text-align:left; }
         .tk th.c, .tk td.c { text-align:center; }
-        .tk td { padding:7px 6px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; color:var(--text); font-variant-numeric:tabular-nums; }
-        .tk td.name { font-weight:600; }
-        .tk td.unit { line-height:1.25; font-size:12.5px; } .tk td.unit small { display:block; color:var(--muted); font-size:10.5px; }
-        .tk small.of { color:var(--faint); font-size:10.5px; margin-left:3px; }
-        .tk .score { font-weight:700; font-size:16px; }
+        .tk td { padding:5px 6px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; color:var(--text); font-variant-numeric:tabular-nums; }
+        .tk td.name { font-weight:600; max-width:170px; overflow:hidden; text-overflow:ellipsis; }
+        .tk td.unit { line-height:1.2; font-size:11.5px; max-width:130px; overflow:hidden; text-overflow:ellipsis; } .tk td.unit small { display:block; color:var(--muted); font-size:10px; overflow:hidden; text-overflow:ellipsis; }
+        .tk small.of { color:var(--faint); font-size:9.5px; margin-left:3px; }
+        .tk .score { font-weight:700; font-size:14px; }
         .tk .pos b { font-weight:600; }
         .tk .meta .g { color:var(--good); font-weight:700; } .tk .meta .r { color:var(--bad); font-weight:700; }
         .tk .meta .s { color:var(--muted); margin:0 3px; }
         .tk .imp { font-weight:500; }
         .tk .trend { display:flex; align-items:center; justify-content:flex-end; gap:4px; }
-        .tk .trend svg { width:44px; height:18px; display:block; overflow:visible; }
-        .tk .delta { font-size:11px; font-weight:600; min-width:34px; text-align:right; }
+        .tk .trend svg { width:40px; height:16px; display:block; overflow:visible; }
+        .tk .delta { font-size:10.5px; font-weight:600; min-width:34px; text-align:right; }
         .tk tr.click { cursor:pointer; } .tk tr.click:hover td { background:rgba(148,163,184,.08); }
         .tk-empty { font-size:13px; color:var(--muted); padding:12px 0; }
       </style>
@@ -236,7 +236,7 @@ looker.plugins.visualizations.add({
         };
         const body = rows.map((r, i) => `
       <tr data-i="${i}" class="${r.links.length ? "click" : ""}">
-        <td class="l name">${esc(r.name)}</td>
+        <td class="l name" title="${esc(r.name)}">${esc(r.name)}</td>
         ${showUnit ? `<td class="l unit">${esc(r.extras[0] || "")}${r.extras.length > 1 ? `<small>${esc(r.extras.slice(1).join(" · "))}</small>` : ""}</td>` : ""}
         ${showActivos ? `<td>${actCell(r)}</td>` : ""}
         ${showKm ? `<td>${km(r.km)}</td>` : ""}

@@ -34,26 +34,26 @@ looker.plugins.visualizations.add({
           font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; display:flex; flex-direction:column; overflow:auto; }
         .rs-wrap.dark { --bg:#111827; --card:#111827; --text:#f1f5f9; --muted:#94a3b8; --line:#1f2937; --head:#cbd5e1;
           --good:#22c55e; --warn:#eab308; --bad:#ef4444; --sel:#60a5fa; --selbg:#172554; }
-        .rs-head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }
-        .rs-title { margin:0; font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--head); }
-        .rs-right { font-size:11.5px; color:var(--muted); }
-        .rs-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:8px; }
-        .rs-card { border:1px solid var(--line); border-radius:8px; padding:8px 10px; background:var(--card);
-          display:flex; flex-direction:column; gap:3px; min-width:0; }
-        .rs-card.sel { border:2px solid var(--sel); background:var(--selbg); padding:7px 9px; }
+        .rs-head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; }
+        .rs-title { margin:0; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--head); }
+        .rs-right { font-size:11px; color:var(--muted); }
+        .rs-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(125px, 1fr)); gap:6px; }
+        .rs-card { border:1px solid var(--line); border-radius:8px; padding:6px 8px; background:var(--card);
+          display:flex; flex-direction:column; gap:2px; min-width:0; }
+        .rs-card.sel { border:2px solid var(--sel); background:var(--selbg); padding:5px 7px; }
         .rs-card.click { cursor:pointer; } .rs-card.click:hover { border-color:#94a3b8; }
         .rs-card.sel.click:hover { border-color:var(--sel); }
-        .rs-name { font-size:12px; color:var(--head); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .rs-name { font-size:11px; color:var(--head); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
         .rs-row { display:flex; align-items:center; gap:6px; min-width:0; }
-        .rs-val { font-size:21px; font-weight:700; line-height:1.1; letter-spacing:-.01em; white-space:nowrap; font-variant-numeric:tabular-nums; }
-        .rs-pill { font-size:10px; font-weight:600; padding:1px 6px; border-radius:999px; white-space:nowrap; }
+        .rs-val { font-size:17px; font-weight:700; line-height:1.1; letter-spacing:-.01em; white-space:nowrap; font-variant-numeric:tabular-nums; }
+        .rs-pill { font-size:9px; font-weight:600; padding:1px 6px; border-radius:999px; white-space:nowrap; }
         .rs-pill.good { color:var(--good); background:rgba(34,197,94,.14); }
         .rs-pill.warn { color:var(--warn); background:rgba(234,179,8,.18); }
         .rs-pill.bad  { color:var(--bad);  background:rgba(239,68,68,.12); }
         .rs-unit { font-size:10.5px; color:var(--muted); white-space:nowrap; }
         .rs-spark { flex:1; min-width:24px; height:16px; }
         .rs-spark svg { width:100%; height:100%; display:block; overflow:visible; }
-        .rs-delta { font-size:11px; font-weight:600; white-space:nowrap; }
+        .rs-delta { font-size:10px; font-weight:600; white-space:nowrap; }
         .rs-delta small { color:var(--muted); font-weight:400; margin-left:3px; }
       </style>
       <div class="rs-wrap" id="rs-wrap">

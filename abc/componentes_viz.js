@@ -43,39 +43,39 @@ looker.plugins.visualizations.add({
         .cp-wrap { --bg:#ffffff; --text:#0f172a; --muted:#64748b; --line:#e2e8f0; --track:#eef2f7; --head:#334155;
           --good:#16a34a; --warn:#eab308; --bad:#dc2626; --orange:#f97316;
           width:100%; height:100%; box-sizing:border-box; padding:2px 4px; overflow:auto; background:var(--bg); color:var(--text);
-          font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; display:flex; flex-direction:column; gap:16px; }
+          font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; display:flex; flex-direction:column; gap:12px; }
         .cp-wrap.dark { --bg:#111827; --text:#f1f5f9; --muted:#94a3b8; --line:#1f2937; --track:#1f2937; --head:#cbd5e1;
           --good:#22c55e; --warn:#eab308; --bad:#ef4444; }
-        .cp-title { margin:0; font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--head); }
-        .cp-sec { font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
+        .cp-title { margin:0; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--head); }
+        .cp-sec { font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
         .cp-kpis { display:flex; gap:28px; flex-wrap:wrap; }
         .cp-kpi { border-left:2px solid var(--line); padding:2px 0 2px 10px; min-width:110px; flex:1; }
-        .cp-kpi b { display:block; font-size:21px; font-weight:700; line-height:1.15; letter-spacing:-.01em; font-variant-numeric:tabular-nums; }
-        .cp-kpi span { display:block; font-size:12px; color:var(--text); opacity:.85; }
-        .cp-kpi small { display:block; font-size:11px; color:var(--muted); }
+        .cp-kpi b { display:block; font-size:17px; font-weight:700; line-height:1.15; letter-spacing:-.01em; font-variant-numeric:tabular-nums; }
+        .cp-kpi span { display:block; font-size:11px; color:var(--text); opacity:.85; }
+        .cp-kpi small { display:block; font-size:10px; color:var(--muted); }
         .cp-hero { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
-        .cp-hero b { font-size:44px; font-weight:700; line-height:1; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
-        .cp-hero span { font-size:13px; }
+        .cp-hero b { font-size:34px; font-weight:700; line-height:1; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+        .cp-hero span { font-size:12px; }
         .cp-hero em { margin-left:auto; font-style:normal; font-size:12px; color:var(--muted); }
         .cp-meter { position:relative; height:10px; border-radius:999px; background:var(--track); margin-top:10px; }
         .cp-meter > div { height:100%; border-radius:999px; }
         .cp-meter i { position:absolute; top:-3px; bottom:-3px; width:2px; background:var(--good); }
-        table.cp { width:100%; border-collapse:collapse; font-size:13px; color:var(--text); font-family:inherit; }
+        table.cp { width:100%; border-collapse:collapse; font-size:12px; color:var(--text); font-family:inherit; }
         .cp th { font-size:9.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted);
           padding:5px 10px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; }
         .cp th:first-child, .cp td:first-child { text-align:left; }
-        .cp td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; color:var(--text); font-variant-numeric:tabular-nums; }
+        .cp td { padding:5px 8px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; color:var(--text); font-variant-numeric:tabular-nums; }
         .cp td.score .sc { display:flex; align-items:center; justify-content:flex-end; gap:14px; }
-        .cp .track { width:90px; height:6px; border-radius:999px; background:var(--track); overflow:hidden; }
+        .cp .track { width:70px; height:6px; border-radius:999px; background:var(--track); overflow:hidden; }
         .cp .fill { height:100%; border-radius:999px; }
-        .cp .val { font-size:16px; font-weight:700; min-width:44px; text-align:right; }
+        .cp .val { font-size:14px; font-weight:700; min-width:44px; text-align:right; }
         .cp-stack { display:flex; height:16px; border-radius:6px; overflow:hidden; background:var(--track); }
         .cp-stack div { display:flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:600; color:#1f2937; white-space:nowrap; overflow:hidden; }
         .cp-leg { display:flex; gap:14px; flex-wrap:wrap; margin-top:6px; font-size:11.5px; color:var(--muted); }
         .cp-leg span i { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
         .cp-leg b { color:var(--text); margin-left:3px; }
-        .cp-dist { display:grid; grid-template-columns:110px minmax(80px, 260px) 40px; gap:10px 14px; align-items:center;
-          font-size:13px; justify-content:center; }
+        .cp-dist { display:grid; grid-template-columns:100px minmax(80px, 240px) 40px; gap:7px 12px; align-items:center;
+          font-size:12px; justify-content:center; }
         .cp-dist .bar { height:9px; border-radius:999px; background:var(--track); overflow:hidden; }
         .cp-dist .bar div { height:100%; border-radius:999px; }
         .cp-dist b { font-weight:700; text-align:right; }
