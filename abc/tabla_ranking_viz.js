@@ -23,7 +23,7 @@ looker.plugins.visualizations.add({
     label: "Tabla Ranking (Impacto)",
 
     options: {
-        title: { type: "string", label: "Título (ej. Clientes)", default: "Clientes", section: "Texto", order: 1 },
+        tableTitle: { type: "string", label: "Título (ej. Clientes)", default: "", section: "Texto", order: 1 },
         showCount: { type: "boolean", label: "Mostrar número de elementos junto al título", default: true, section: "Texto", order: 2 },
         rightText: { type: "string", label: "Texto a la derecha (vacío = en meta · fuera)", default: "", section: "Texto", order: 3 },
         nameHeader: { type: "string", label: "Encabezado de la primera columna", default: "Cliente", section: "Texto", order: 4 },
@@ -222,7 +222,7 @@ looker.plugins.visualizations.add({
         $("tk-table").innerHTML = total ? `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>` : `<tbody><tr><td class="tk-empty">Sin datos</td></tr></tbody>`;
 
         // ---------- Encabezado ----------
-        $("tk-title").innerHTML = `${esc(config.title || "")}${config.showCount !== false ? `<span>${total}</span>` : ""}`;
+        $("tk-title").innerHTML = `${esc(config.tableTitle || "")}${config.showCount !== false ? `<span>${total}</span>` : ""}`;
         const sumIn = rows.reduce((s, r) => s + (r.inM || 0), 0), sumOut = rows.reduce((s, r) => s + (r.outM || 0), 0);
         $("tk-right").innerHTML = config.rightText
             ? esc(config.rightText)
