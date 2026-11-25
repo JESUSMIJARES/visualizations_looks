@@ -71,8 +71,8 @@ looker.plugins.visualizations.add({
         .tk th.l, .tk td.l { text-align:left; }
         .tk th.c, .tk td.c { text-align:center; }
         .tk td { padding:5px 6px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; color:var(--text); font-variant-numeric:tabular-nums; }
-        .tk td.name { font-weight:600; max-width:170px; overflow:hidden; text-overflow:ellipsis; }
-        .tk td.unit { line-height:1.2; font-size:11.5px; max-width:130px; overflow:hidden; text-overflow:ellipsis; } .tk td.unit small { display:block; color:var(--muted); font-size:10px; overflow:hidden; text-overflow:ellipsis; }
+        .tk td.name { font-weight:600; max-width:130px; overflow:hidden; text-overflow:ellipsis; }
+        .tk td.unit { line-height:1.2; font-size:11.5px; max-width:105px; overflow:hidden; text-overflow:ellipsis; } .tk td.unit small { display:block; color:var(--muted); font-size:10px; overflow:hidden; text-overflow:ellipsis; }
         .tk small.of { color:var(--faint); font-size:9.5px; margin-left:3px; }
         .tk .score { font-weight:700; font-size:14px; }
         .tk .pos b { font-weight:600; }
@@ -83,6 +83,8 @@ looker.plugins.visualizations.add({
         .tk .trend svg { width:40px; height:16px; display:block; overflow:visible; }
         .tk .delta { font-size:10.5px; font-weight:600; min-width:34px; text-align:right; }
         .tk tr.click { cursor:pointer; } .tk tr.click:hover td { background:rgba(148,163,184,.08); }
+        .tk.comb td { padding:5px 4px; font-size:11.5px; } .tk.comb th { padding:5px 4px; }
+        .tk.comb td.name { max-width:110px; }
         .tk-empty { font-size:13px; color:var(--muted); padding:12px 0; }
       </style>
       <div class="tk-wrap" id="tk-wrap">
@@ -256,7 +258,10 @@ looker.plugins.visualizations.add({
         const deltaMoney = (d) => {
             if (d === null) return `<span class="delta" style="color:var(--faint)">—</span>`;
             const c = d < 0 ? "var(--good)" : d > 0 ? "var(--bad)" : "var(--muted)";
-            return `<span class="delta" style="color:${c}">${d < 0 ? "▼" : d > 0 ? "▲" : "■"} ${money(Math.abs(d))}</span>`;
+            const a = Math.abs(d);
+            const sm = a >= 1e6 ? "$" + (a / 1e6).toLocaleString("es-MX", { maximumFractionDigits: 1 }) + " M"
+                : a >= 1e3 ? "$" + (a / 1e3).toLocaleString("es-MX", { maximumFractionDigits: a >= 1e4 ? 0 : 1 }) + " mil" : "$" + Math.round(a);
+            return `<span class="delta" style="color:${c}">${d < 0 ? "▼" : d > 0 ? "▲" : "■"} ${sm}</span>`;
         };
         const total = rows.length;
         const actCell = (r) => {
@@ -269,7 +274,7 @@ looker.plugins.visualizations.add({
         const headC = [
             `<th class="l">${esc(config.nameHeader || auto[1])}</th>`,
             showUnit ? `<th class="l">${esc(config.extraDimsHeader || "Unidad")}</th>` : "",
-            showKm ? `<th>Km</th>` : "",
+            showKm && !showUnit ? `<th>Km</th>` : "",
             showMetaC ? `<th>En meta</th>` : "",
             showPos && !showUnit ? `<th>Pos.</th>` : "",
             showRend ? `<th title="Rendimiento real / esperado (km/L)">Rend./esp.</th>` : "",
@@ -281,13 +286,13 @@ looker.plugins.visualizations.add({
       <tr data-i="${i}" class="${r.links.length ? "click" : ""}">
         <td class="l name" title="${esc(r.name)}">${esc(r.name)}</td>
         ${showUnit ? `<td class="l unit">${esc(r.extras[0] || "")}${r.extras.length > 1 ? `<small>${esc(r.extras.slice(1).join(" · "))}</small>` : ""}</td>` : ""}
-        ${showKm ? `<td>${km(r.km)}</td>` : ""}
+        ${showKm && !showUnit ? `<td>${km(r.km)}</td>` : ""}
         ${showMetaC ? `<td class="meta"><span class="g">${r.inM ?? 0}</span><span class="s">/</span><span class="r">${r.outM ?? 0}</span></td>` : ""}
         ${showPos && !showUnit ? `<td class="pos"><b>${r.pos}°</b><small class="of">de ${total}</small></td>` : ""}
         ${showRend ? `<td style="line-height:1.15"><b style="color:${r.real !== null && r.esp !== null && r.real < r.esp ? "var(--bad)" : "var(--good)"}">${d2(r.real)}</b><small class="of" style="display:block">${d2(r.esp)}</small></td>` : ""}
         <td style="color:var(--good)">${money(r.log)}${!showUnit && r.act ? `<small class="of">${money(r.log / r.act)}</small>` : ""}</td>
         <td style="color:#ea580c;font-weight:600">${money(r.por)}</td>
-        ${showTrend ? `<td><div class="trend">${spark(r.trend)}${deltaMoney(r.delta)}</div></td>` : ""}
+        ${showTrend ? `<td><div class="trend" title="${r.delta === null ? "" : "vs mes anterior: " + (r.delta > 0 ? "+" : r.delta < 0 ? "−" : "") + money(Math.abs(r.delta))}">${spark(r.trend)}</div></td>` : ""}
       </tr>`).join("");
         const body = comb ? bodyC : rows.map((r, i) => `
       <tr data-i="${i}" class="${r.links.length ? "click" : ""}">
@@ -303,6 +308,7 @@ looker.plugins.visualizations.add({
         ${showTrend ? `<td><div class="trend">${spark(r.trend)}${deltaHtml(r.delta)}</div></td>` : ""}
       </tr>`).join("");
 
+        $("tk-table").classList.toggle("comb", comb);
         $("tk-table").innerHTML = total ? `<thead><tr>${comb ? headC : head}</tr></thead><tbody>${body}</tbody>` : `<tbody><tr><td class="tk-empty">Sin datos</td></tr></tbody>`;
 
         // ---------- Encabezado ----------
