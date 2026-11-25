@@ -48,7 +48,8 @@ looker.plugins.visualizations.add({
         },
         goodFrom: { type: "number", label: "Bien desde (≥)", default: 80, section: "Semáforo", order: 1 },
         warnFrom: { type: "number", label: "Atención desde (≥)", default: 70, section: "Semáforo", order: 2 },
-        darkMode: { type: "boolean", label: "Modo oscuro", default: false, section: "Estilo", order: 1 }
+        darkMode: { type: "boolean", label: "Modo oscuro", default: false, section: "Estilo", order: 1 },
+        clickMenu: { type: "boolean", label: "Al dar clic, mostrar menú (en vez de filtrar directo)", default: false, section: "Estilo", order: 2 }
     },
 
     create: function (element) {
@@ -156,14 +157,17 @@ looker.plugins.visualizations.add({
                 log: val(r, mLog), por: val(r, mPor), real: val(r, mReal), esp: val(r, mEsp)
             };
             // Clic: primero "Ver Análisis de…" (enlace del elemento) y después el detalle de unidades
-            if (m === lastMonth) it.links = [...((r[dName.name] && r[dName.name].links) || []), ...((r[mMain] && r[mMain].links) || [])];
+            if (m === lastMonth) {
+                it.goLinks = (r[dName.name] && r[dName.name].links) || [];
+                it.links = [...it.goLinks, ...((r[mMain] && r[mMain].links) || [])];
+            }
         });
 
         let rows = [...items.values()].map(it => {
             const cur = it.byMonth[lastMonth] || {};
             const prev = prevMonth ? (it.byMonth[prevMonth] || {}) : {};
             return {
-                name: it.name, extras: it.extras, links: it.links,
+                name: it.name, extras: it.extras, links: it.links || [], goLinks: it.goLinks || [],
                 cal: cur.cal ?? null, act: cur.act ?? null, veh: cur.veh ?? null, km: cur.km ?? null,
                 inM: cur.inM ?? null, outM: cur.outM ?? null, extra: cur.extra ?? null,
                 log: cur.log ?? null, por: cur.por ?? null, real: cur.real ?? null, esp: cur.esp ?? null,
@@ -327,7 +331,15 @@ looker.plugins.visualizations.add({
         // ---------- Clic: detalle de las unidades del elemento ----------
         element.querySelectorAll("#tk-table tr[data-i]").forEach(tr => {
             const r = rows[Number(tr.getAttribute("data-i"))];
-            if (r.links.length) tr.addEventListener("click", (event) => LookerCharts.Utils.openDrillMenu({ links: r.links, event }));
+            if (!r.links.length) return;
+            tr.addEventListener("click", (event) => {
+                // Por defecto: clic directo a "Ver Análisis de…" (sin menú). Si no hay ese enlace, abre el detalle.
+                if (config.clickMenu !== true && r.goLinks.length && LookerCharts.Utils.openUrl) {
+                    LookerCharts.Utils.openUrl(r.goLinks[0].url, event);
+                } else {
+                    LookerCharts.Utils.openDrillMenu({ links: r.links, event });
+                }
+            });
         });
 
         done();
