@@ -155,7 +155,8 @@ looker.plugins.visualizations.add({
                 cal: val(r, mCal), act: val(r, mAct), veh: val(r, mVeh), km: val(r, mKm), inM: val(r, mIn), outM: val(r, mOut), extra: val(r, mExtra),
                 log: val(r, mLog), por: val(r, mPor), real: val(r, mReal), esp: val(r, mEsp)
             };
-            if (m === lastMonth) it.links = (r[mMain] && r[mMain].links) || [];
+            // Clic: primero "Ver Análisis de…" (enlace del elemento) y después el detalle de unidades
+            if (m === lastMonth) it.links = [...((r[dName.name] && r[dName.name].links) || []), ...((r[mMain] && r[mMain].links) || [])];
         });
 
         let rows = [...items.values()].map(it => {
